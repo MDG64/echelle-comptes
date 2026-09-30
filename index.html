@@ -19,7 +19,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-/* Layout : bandeau de chiffres, puis deux colonnes (courbes + journal | saisie + réglages) ; une seule colonne sur téléphone, saisie en premier. */
+/* Layout : bandeau de chiffres, ligne des comptes, puis deux colonnes (courbes + journal | saisie + réglages) ; une seule colonne sur téléphone, saisie en premier. */
 :root {
   --bg: #f1f3ee;
   --surface: #fbfcf9;
@@ -77,8 +77,6 @@ h1 { font-size: clamp(1.7rem, 4vw, 2.3rem); line-height: 1.1; }
 h2 { font-size: 1.08rem; line-height: 1.25; }
 p { margin: 0; }
 .eyebrow { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
-.sub { color: var(--ink-2); max-width: 70ch; }
-.num { font-variant-numeric: tabular-nums; }
 
 header.top { display: flex; flex-direction: column; gap: 8px; }
 .rule-line { display: flex; flex-wrap: wrap; gap: 6px 8px; }
@@ -94,6 +92,7 @@ header.top { display: flex; flex-direction: column; gap: 8px; }
 .kpi .label { font-size: 0.8rem; color: var(--ink-2); }
 .kpi .value { font-family: var(--font-display); font-weight: 700; font-size: 1.55rem; line-height: 1.15; }
 .kpi.hero .value { font-size: 2.3rem; }
+.kpi .value small { font-size: 0.6em; color: var(--muted); font-weight: 500; }
 .kpi .note { font-size: 0.8rem; color: var(--muted); }
 .delta { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
 .delta.up { color: var(--good); }
@@ -114,6 +113,27 @@ header.top { display: flex; flex-direction: column; gap: 8px; }
 .card-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
 .card-head .hint { font-size: 0.82rem; color: var(--muted); }
 
+/* Ligne des comptes */
+.acc-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; }
+@media (min-width: 1100px) { .acc-row { grid-template-columns: repeat(var(--acc-n, 11), minmax(0, 1fr)); } }
+.acc { display: flex; flex-direction: column; gap: 6px; padding: 9px 8px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); min-width: 0; }
+.acc.active { border-color: var(--real); background: var(--real-wash); }
+.acc-num { display: flex; align-items: center; gap: 6px; font-family: var(--font-data); font-weight: 500; font-size: 0.95rem; color: var(--ink); }
+.acc-num i { width: 8px; height: 8px; border-radius: 50%; background: var(--axis); flex: none; }
+.acc.active .acc-num i { background: var(--real); }
+.acc input { padding: 7px 8px; font-size: 0.95rem; text-align: right; background: var(--surface); -moz-appearance: textfield; appearance: textfield; }
+.acc input::-webkit-inner-spin-button, .acc input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.acc-tag { font: inherit; font-size: 0.74rem; line-height: 1.3; color: var(--muted); background: none; border: 0; padding: 0; text-align: left; min-height: 1.3em; }
+button.acc-tag { color: var(--ink-2); cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+button.acc-tag:disabled { cursor: default; text-decoration: none; }
+.acc.next .acc-tag { color: var(--ink); font-weight: 600; }
+.acc-foot { display: grid; gap: 14px; }
+@media (min-width: 720px) { .acc-foot { grid-template-columns: 280px minmax(0, 1fr); align-items: end; } }
+.acc-summary { font-size: 0.88rem; color: var(--ink-2); padding: 10px 12px; background: var(--bg); border-radius: 8px; }
+.acc-summary b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.acc-summary .go { color: var(--good); font-weight: 600; }
+.acc-help { font-size: 0.78rem; color: var(--muted); }
+
 /* Légende et bascule d'échelle */
 .chart-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.84rem; color: var(--ink-2); }
@@ -133,6 +153,7 @@ header.top { display: flex; flex-direction: column; gap: 8px; }
 .axis-text { fill: var(--muted); font-family: var(--font-body); font-size: 11px; font-variant-numeric: tabular-nums; }
 .end-name { fill: var(--muted); font-family: var(--font-body); font-size: 11px; }
 .end-val { fill: var(--ink); font-family: var(--font-body); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.goal-text { fill: var(--ink-2); font-family: var(--font-body); font-size: 11px; font-weight: 600; }
 .empty-note { fill: var(--muted); font-family: var(--font-body); font-size: 13px; }
 
 .tip { position: absolute; top: 0; left: 0; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 0.8rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); min-width: 170px; z-index: 5; }
@@ -147,7 +168,7 @@ header.top { display: flex; flex-direction: column; gap: 8px; }
 form { display: flex; flex-direction: column; gap: 12px; }
 .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .field label { font-size: 0.82rem; font-weight: 600; color: var(--ink-2); }
-.field .help { font-size: 0.78rem; color: var(--muted); }
+.help { font-size: 0.78rem; color: var(--muted); }
 .row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: end; }
 input[type="number"], input[type="date"], input[type="text"] {
   font: inherit; font-size: 1rem; width: 100%; padding: 9px 11px; border: 1px solid var(--axis); border-radius: 8px;
@@ -160,6 +181,7 @@ input[aria-invalid="true"] { border-color: var(--bad); }
 .btn.primary { background: var(--real); color: var(--btn-ink); }
 .btn.primary:hover { filter: brightness(1.06); }
 .btn.ghost { background: transparent; color: var(--ink-2); border-color: var(--line); }
+.btn.danger { background: var(--bad); color: var(--btn-ink); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .form-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .form-actions .btn.primary { flex: 1; }
@@ -191,9 +213,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
 .file-btn { display: inline-flex; align-items: center; justify-content: center; position: relative; }
 .file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
 .file-btn:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
-.btn.danger { background: var(--bad); color: var(--btn-ink); }
 .import-confirm { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--axis); border-radius: 8px; background: var(--bg); font-size: 0.86rem; }
-.import-confirm b { font-variant-numeric: tabular-nums; }
 
 footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
 
@@ -211,7 +231,7 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
   <section class="kpis" aria-label="Chiffres clés">
     <div class="kpi hero">
       <span class="label">Capital réel</span>
-      <span class="value" id="k-capital">1 300 €</span>
+      <span class="value" id="k-capital">—</span>
       <span class="note" id="k-capital-note">Jour 0 · aucun jour saisi</span>
     </div>
     <div class="kpi">
@@ -220,9 +240,9 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
       <span class="note" id="k-delta-note">—</span>
     </div>
     <div class="kpi">
-      <span class="label">Comptes ouverts</span>
-      <span class="value" id="k-accounts">4</span>
-      <span class="note" id="k-accounts-note">idéal : 4</span>
+      <span class="label">Comptes actifs</span>
+      <span class="value" id="k-accounts">—</span>
+      <span class="note" id="k-accounts-note">—</span>
     </div>
     <div class="kpi">
       <span class="label">Gain moyen réel</span>
@@ -234,6 +254,23 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
       <span class="value" id="k-proj">—</span>
       <span class="note" id="k-proj-note">idéal : —</span>
     </div>
+  </section>
+
+  <section class="card" id="card-accounts" aria-labelledby="h-accounts">
+    <div class="card-head">
+      <h2 id="h-accounts">Comptes</h2>
+      <span class="hint">Case capital remplie = compte actif</span>
+    </div>
+    <div class="acc-row" id="acc-row"></div>
+    <div class="acc-foot">
+      <div class="field">
+        <label for="s-gain">Gain espéré par compte et par jour (€)</label>
+        <input id="s-gain" class="big" type="number" min="0" step="any" inputmode="decimal">
+      </div>
+      <p class="acc-summary" id="acc-summary"></p>
+    </div>
+    <p class="acc-help">« départ » : compte présent au départ, son capital fixe le point de départ de la courbe idéale. « J5 » : compte ouvert après le 5ᵉ jour, avec les gains. Touchez l'étiquette pour passer de l'un à l'autre. Les comptes vides indiquent le jour d'ouverture prévu par la courbe idéale.</p>
+    <p class="status" id="acc-status" role="status" aria-live="polite"></p>
   </section>
 
   <div class="layout">
@@ -295,7 +332,7 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
               <input id="in-accounts" type="number" min="1" step="1" inputmode="numeric" placeholder="auto">
             </div>
           </div>
-          <p class="help" id="accounts-help" style="font-size:0.78rem;color:var(--muted)">Vide = calcul automatique.</p>
+          <p class="help" id="accounts-help">Vide = nombre de cases capital remplies.</p>
           <div class="form-actions">
             <button class="btn primary" type="submit" id="btn-save">Enregistrer</button>
             <button class="btn ghost" type="button" id="btn-cancel" hidden>Annuler</button>
@@ -312,28 +349,17 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
         <form id="settings-form" novalidate>
           <div class="row2">
             <div class="field">
-              <label for="s-capital">Capital de départ (€)</label>
-              <input id="s-capital" type="number" min="1" step="any" inputmode="decimal">
+              <label for="s-pas">Nouveau compte tous les (€ de gains)</label>
+              <input id="s-pas" type="number" min="1" step="any" inputmode="decimal">
             </div>
             <div class="field">
-              <label for="s-accounts">Comptes au départ</label>
-              <input id="s-accounts" type="number" min="1" step="1" inputmode="numeric">
-            </div>
-          </div>
-          <div class="row2">
-            <div class="field">
-              <label for="s-gain">Gain visé / compte / jour (€)</label>
-              <input id="s-gain" type="number" min="0" step="any" inputmode="decimal">
-            </div>
-            <div class="field">
-              <label for="s-horizon">Horizon (jours)</label>
-              <input id="s-horizon" type="number" min="5" max="365" step="1" inputmode="numeric">
+              <label for="s-objectif">Objectif (comptes)</label>
+              <input id="s-objectif" type="number" min="1" step="1" inputmode="numeric">
             </div>
           </div>
           <div class="field">
-            <label for="s-max">Nombre maximum de comptes</label>
-            <input id="s-max" type="number" min="1" step="1" inputmode="numeric" placeholder="sans limite">
-            <span class="help">Laisser vide si la plateforme ne fixe pas de plafond.</span>
+            <label for="s-horizon">Horizon du graphique (jours de trading)</label>
+            <input id="s-horizon" type="number" min="5" max="365" step="1" inputmode="numeric">
           </div>
           <p class="derived" id="derived"></p>
         </form>
@@ -373,18 +399,25 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
 (function () {
   "use strict";
 
-  const DEFAULTS = { capital: 1300, comptes: 4, gain: 50, horizon: 20, max: null };
+  const ACCOUNT_NUMBERS = ["400", "889", "003", "975", "906", "668", "914", "176", "358", "398", "757"];
+  const DEFAULTS = { gain: 50, pas: 300, objectif: 10, horizon: 20 };
+  // Point de départ des premières versions (capital total ÷ comptes), repris tant que
+  // la ligne des comptes n'a jamais été enregistrée.
+  const LEGACY = { capital: 1300, comptes: 4 };
   const LS_KEY = "echelle-comptes-v1";
   const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const NUM_RE = /^[A-Za-z0-9_-]{1,20}$/;
 
   const state = {
     settings: { ...DEFAULTS },
+    legacy: { ...LEGACY },
+    accounts: null,      // null = jamais enregistrée : liste par défaut
     days: [],            // [{date, gain, comptes|null}]
     scale: "lin",
     mode: "pending",     // pending | db | local
     readOnly: false,
-    editing: null,       // date being edited
-    confirmDelete: null, // date awaiting confirmation
+    editing: null,
+    confirmDelete: null,
   };
   let db = null;
   let model = null;
@@ -416,17 +449,42 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     if (v === null || v === undefined || v === "") return NaN;
     return typeof v === "number" ? v : Number(String(v).replace(",", ".").replace(/\s/g, ""));
   };
+  const plural = (n, one, many) => n + " " + (n > 1 ? many : one);
 
   function cleanSettings(raw) {
-    const s = { ...DEFAULTS };
-    if (!raw || typeof raw !== "object") return s;
-    const c = toNum(raw.capital); if (c > 0) s.capital = c;
-    const n = Math.round(toNum(raw.comptes)); if (n >= 1) s.comptes = n;
-    const g = toNum(raw.gain); if (g >= 0) s.gain = g;
-    const h = Math.round(toNum(raw.horizon)); if (h >= 5 && h <= 365) s.horizon = h;
-    const m = Math.round(toNum(raw.max)); s.max = m >= 1 ? m : null;
-    return s;
+    const s = { ...DEFAULTS }, L = { ...LEGACY };
+    if (raw && typeof raw === "object") {
+      const g = toNum(raw.gain); if (g >= 0) s.gain = g;
+      const pas = toNum(raw.pas); if (pas > 0) s.pas = pas;
+      const o = Math.round(toNum(raw.objectif)); if (o >= 1) s.objectif = o;
+      const h = Math.round(toNum(raw.horizon)); if (h >= 5 && h <= 365) s.horizon = h;
+      const c = toNum(raw.capital); if (c > 0) L.capital = c;
+      const n = Math.round(toNum(raw.comptes)); if (n >= 1) L.comptes = n;
+    }
+    return { settings: s, legacy: L };
   }
+  function cleanAccounts(list) {
+    if (!Array.isArray(list)) return null;
+    const out = [], seen = new Set();
+    list.forEach((a) => {
+      if (!a || typeof a !== "object") return;
+      const numero = String(a.numero || "");
+      if (!NUM_RE.test(numero) || seen.has(numero)) return;
+      seen.add(numero);
+      const c = toNum(a.capital);
+      const capital = Number.isFinite(c) && c >= 0 ? c : null;
+      const o = Math.round(toNum(a.ouvert));
+      out.push({ numero, capital, ouvert: capital === null ? null : o >= 0 ? o : 0 });
+    });
+    ACCOUNT_NUMBERS.forEach((numero) => { if (!seen.has(numero)) out.push({ numero, capital: null, ouvert: null }); });
+    return out;
+  }
+  function defaultAccounts(L) {
+    const n = Math.min(ACCOUNT_NUMBERS.length, L.comptes);
+    const each = Math.round((L.capital / L.comptes) * 100) / 100;
+    return ACCOUNT_NUMBERS.map((numero, i) => ({ numero, capital: i < n ? each : null, ouvert: i < n ? 0 : null }));
+  }
+  const accounts = () => state.accounts || defaultAccounts(state.legacy);
   function cleanDay(raw) {
     if (!raw || typeof raw !== "object" || !DAY_RE.test(String(raw.date))) return null;
     const g = toNum(raw.gain);
@@ -436,92 +494,123 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
   }
 
   /* ---------- Modèle ---------- */
-  // Un compte s'ouvre à chaque tranche de (capital / comptes) de gains cumulés.
-  // Les seuils se comptent sur le plus haut des gains cumulés : repasser un seuil
-  // après une perte n'ouvre pas de compte en double.
-  function simulate(p, days) {
-    const U = p.capital / p.comptes;
-    const cap = p.max && p.max >= p.comptes ? p.max : Infinity;
-    const thr = (G) => Math.floor(Math.max(0, G) / U + 1e-9);
+  // Point de départ : les comptes marqués « départ » (capital renseigné, ouvert au J0).
+  // Un compte s'ajoute à chaque tranche de `pas` € de gains cumulés, jusqu'à l'objectif.
+  // Le seuil suivant ne fait que monter : repasser un seuil après une perte n'ouvre rien.
+  function simulate(p, accts, days) {
+    const active = accts.filter((a) => a.capital !== null);
+    const start = active.filter((a) => a.ouvert === 0);
+    const C0 = start.reduce((s, a) => s + a.capital, 0);
+    const N0 = start.length;
+    const openedReal = active.length - N0;
+    const obj = p.objectif;
+    const opens = (G, st) => { let o = 0; while (G >= st.nextAt - 1e-9) { o++; st.nextAt += p.pas; } return o; };
+    const after = (used, o) => (used >= obj ? used : Math.min(obj, used + o));
 
-    const real = [{ d: 0, E: p.capital, G: 0, n: p.comptes }];
-    let G = 0, peak = 0, n = p.comptes, sumGain = 0, sumAcc = 0;
+    const real = [{ d: 0, E: C0, G: 0, n: N0 }];
+    let G = 0, n = N0, sumGain = 0, sumAcc = 0;
+    const stR = { nextAt: p.pas };
     days.forEach((e, i) => {
       const used = e.comptes || n;
-      const before = thr(peak);
-      G += e.gain; peak = Math.max(peak, G);
-      const opened = thr(peak) - before;
-      n = Math.min(cap, used + opened);
+      G += e.gain;
+      const o = opens(G, stR);
+      n = after(used, o);
       sumGain += e.gain; sumAcc += used;
-      real.push({ d: i + 1, date: e.date, gain: e.gain, used, auto: !e.comptes, perAcc: e.gain / used, E: p.capital + G, G, n, opened });
+      real.push({ d: i + 1, date: e.date, gain: e.gain, used, auto: !e.comptes, perAcc: used ? e.gain / used : 0, E: C0 + G, G, n, opened: n - used });
     });
     const k = days.length;
-    const realPeak = peak;
     const avg = sumAcc > 0 ? sumGain / sumAcc : null;
     const xMax = Math.max(p.horizon, k + (k >= p.horizon ? 5 : 0));
 
-    const ideal = [{ d: 0, E: p.capital, G: 0, n: p.comptes }];
-    G = 0; peak = 0; n = p.comptes;
-    for (let d = 1; d <= xMax; d++) {
-      const used = n, gain = p.gain * used, before = thr(peak);
-      G += gain; peak = Math.max(peak, G);
-      n = Math.min(cap, n + thr(peak) - before);
-      ideal.push({ d, E: p.capital + G, G, n, used, gain });
+    // Courbe idéale, prolongée hors graphique jusqu'à l'objectif pour dater chaque ouverture.
+    const ideal = [{ d: 0, E: C0, G: 0, n: N0 }];
+    const openings = [];
+    let goalIdeal = N0 >= obj ? 0 : null;
+    G = 0; n = N0;
+    const stI = { nextAt: p.pas };
+    const canGrow = N0 > 0 && p.gain > 0;
+    for (let d = 1; d <= xMax || (canGrow && goalIdeal === null && d <= 3650); d++) {
+      const used = n, gain = p.gain * used;
+      G += gain;
+      n = after(used, opens(G, stI));
+      for (let j = used; j < n; j++) openings.push(d);
+      if (goalIdeal === null && n >= obj) goalIdeal = d;
+      if (d <= xMax) ideal.push({ d, E: C0 + G, G, n, used, gain });
     }
 
+    // Projection : repart d'aujourd'hui avec les comptes actifs et le gain moyen réel.
     const proj = [];
+    let goalProj = active.length >= obj ? k : null;
     if (avg !== null) {
       const last = real[k];
-      let G2 = last.G, pk = realPeak, n2 = last.n;
+      let G2 = last.G, n2 = Math.max(1, active.length);
+      const stP = { nextAt: p.pas * (Math.max(0, openedReal) + 1) };
       proj.push({ d: k, E: last.E, n: n2 });
       for (let d = k + 1; d <= xMax; d++) {
-        const used = n2, gain = avg * used, b = thr(pk);
-        G2 += gain; pk = Math.max(pk, G2);
-        n2 = Math.min(cap, n2 + thr(pk) - b);
-        const E = p.capital + G2;
+        const used = n2, gain = avg * used;
+        G2 += gain;
+        n2 = after(used, opens(G2, stP));
+        if (goalProj === null && n2 >= obj) goalProj = d;
+        const E = C0 + G2;
         if (E <= 0) { proj.push({ d, E: 0, n: n2, used, gain }); break; }
         proj.push({ d, E, n: n2, used, gain });
       }
     }
-    return { U, cap, real, ideal, proj, avg, k, xMax };
+
+    // Seuil réel de la prochaine ouverture
+    const nextAt = p.pas * (Math.max(0, openedReal) + 1);
+    return { C0, N0, active: active.length, openedReal, real, ideal, proj, avg, k, xMax, openings, goalIdeal, goalProj, nextAt, G: real[k].G };
   }
 
-  // Jour de la courbe idéale qui correspond à un capital donné (interpolé).
   function idealDayFor(ideal, E) {
     if (E < ideal[0].E) return null;
     for (let i = 0; i < ideal.length - 1; i++) {
       const a = ideal[i].E, b = ideal[i + 1].E;
-      if (E >= a && E < b) return i + (E - a) / (b - a);
+      if (E >= a && E < b) return b > a ? i + (E - a) / (b - a) : i;
     }
     return ideal.length - 1;
   }
 
   /* ---------- Stockage ---------- */
   function sortedDays() { return state.days.slice().sort((a, b) => a.date.localeCompare(b.date)); }
+  function settingsBody() { return { ...state.settings, capital: state.legacy.capital, comptes: state.legacy.comptes }; }
 
   function saveLocal() {
-    try { localStorage.setItem(LS_KEY, JSON.stringify({ settings: state.settings, days: state.days })); } catch (e) { /* stockage indisponible */ }
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({ settings: settingsBody(), accounts: state.accounts, days: state.days }));
+    } catch (e) { /* stockage indisponible */ }
   }
   function loadLocal() {
     try {
       const raw = JSON.parse(localStorage.getItem(LS_KEY) || "null");
       if (raw) {
-        state.settings = cleanSettings(raw.settings);
+        const c = cleanSettings(raw.settings);
+        state.settings = c.settings; state.legacy = c.legacy;
+        state.accounts = cleanAccounts(raw.accounts);
         state.days = (raw.days || []).map(cleanDay).filter(Boolean);
       }
     } catch (e) { /* ignoré */ }
   }
 
   let settingsChain = Promise.resolve();
-  async function writeSettings() {
+  function writeSettings() {
     if (state.mode === "local") { saveLocal(); flash($("#settings-status"), "Enregistré", "ok"); return; }
     if (state.mode !== "db" || state.readOnly) return;
-    const body = { ...state.settings, maj: new Date().toISOString() };
+    const body = { ...settingsBody(), maj: new Date().toISOString() };
     settingsChain = settingsChain.then(() => db.doc("reglages/principal").set(body)).then(
       () => flash($("#settings-status"), "Enregistré", "ok"),
       (e) => handleWriteError(e, $("#settings-status"))
     );
-    return settingsChain;
+  }
+  let accountsChain = Promise.resolve();
+  function writeAccounts() {
+    if (state.mode === "local") { saveLocal(); flash($("#acc-status"), "Comptes enregistrés", "ok"); return; }
+    if (state.mode !== "db" || state.readOnly) return;
+    const body = { liste: accounts().map((a) => ({ ...a })), maj: new Date().toISOString() };
+    accountsChain = accountsChain.then(() => db.doc("reglages/comptes").set(body)).then(
+      () => flash($("#acc-status"), "Comptes enregistrés", "ok"),
+      (e) => handleWriteError(e, $("#acc-status"))
+    );
   }
   async function writeDay(day) {
     if (state.mode === "local") {
@@ -563,16 +652,15 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     flashTimers.set(el, setTimeout(() => { if (el.textContent === text) setMsg(el, "", ""); }, 2200));
   }
 
-  /* ---------- Rendu : en-tête et chiffres ---------- */
+  /* ---------- En-tête ---------- */
   function renderHeader() {
-    const p = state.settings, U = p.capital / p.comptes;
+    const p = state.settings, m = model;
     const chips = [
-      ["Capital", eur0.format(p.capital)],
-      ["Départ", p.comptes + " comptes"],
-      ["Nouveau compte tous les", eur2.format(U)],
-      ["Objectif", eur2.format(p.gain) + " / compte / jour"],
+      ["Départ", plural(m.N0, "compte", "comptes") + " · " + eur0.format(m.C0)],
+      ["Nouveau compte tous les", eur0.format(p.pas)],
+      ["Objectif", plural(p.objectif, "compte", "comptes")],
+      ["Gain espéré", eur2.format(p.gain) + " / compte / jour"],
     ];
-    if (p.max) chips.push(["Plafond", p.max + " comptes"]);
     const box = $("#rules"); box.textContent = "";
     chips.forEach(([k, v]) => {
       const c = document.createElement("span"); c.className = "chip";
@@ -580,20 +668,132 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
       const b = document.createElement("b"); b.textContent = v; c.append(b);
       box.append(c);
     });
-    $("#derived").innerHTML = "";
-    const d = $("#derived");
-    d.append("Un compte s'ajoute à chaque tranche de ");
-    const b1 = document.createElement("b"); b1.textContent = eur2.format(U); d.append(b1);
-    d.append(" de gains cumulés (" + eur0.format(p.capital) + " ÷ " + p.comptes + "). Jour idéal 1 : ");
-    const b2 = document.createElement("b"); b2.textContent = "+" + eur0.format(p.gain * p.comptes); d.append(b2);
-    d.append(".");
+    const d = $("#derived"); d.textContent = "";
+    const bold = (t) => { const b = document.createElement("b"); b.textContent = t; return b; };
+    d.append("Un compte s'ajoute à chaque tranche de ", bold(eur0.format(p.pas)), " de gains cumulés, jusqu'à ", bold(plural(p.objectif, "compte", "comptes")), ". ");
+    if (m.N0 > 0) {
+      d.append("Jour idéal 1 : ", bold("+" + eur0.format(p.gain * m.N0)), ". ");
+      d.append(m.goalIdeal === null ? "Objectif jamais atteint avec ce gain espéré." : m.goalIdeal === 0 ? "Objectif déjà atteint au départ." : "Objectif atteint au ");
+      if (m.goalIdeal) d.append(bold("J" + m.goalIdeal), " dans la courbe idéale.");
+    }
   }
 
+  /* ---------- Ligne des comptes ---------- */
+  let accBuiltFor = "";
+  let accTimer = null;
+  function buildAccountRow() {
+    const list = accounts();
+    const key = list.map((a) => a.numero).join("|");
+    if (key === accBuiltFor) return;
+    accBuiltFor = key;
+    const row = $("#acc-row");
+    row.textContent = "";
+    row.style.setProperty("--acc-n", String(list.length));
+    list.forEach((a) => {
+      const cell = document.createElement("div"); cell.className = "acc"; cell.dataset.numero = a.numero;
+      const lab = document.createElement("label"); lab.className = "acc-num"; lab.htmlFor = "acc-" + a.numero;
+      lab.append(document.createElement("i"), document.createTextNode(a.numero));
+      const inp = document.createElement("input");
+      inp.type = "number"; inp.id = "acc-" + a.numero; inp.min = "0"; inp.step = "any"; inp.inputMode = "decimal";
+      inp.placeholder = "—"; inp.autocomplete = "off";
+      inp.setAttribute("aria-label", "Capital du compte " + a.numero + " (€)");
+      inp.addEventListener("input", () => onAccountInput(a.numero, inp));
+      const tag = document.createElement("button"); tag.type = "button"; tag.className = "acc-tag";
+      tag.addEventListener("click", () => toggleStart(a.numero));
+      cell.append(lab, inp, tag);
+      row.appendChild(cell);
+    });
+  }
+  function editableAccounts() {
+    if (!state.accounts) state.accounts = defaultAccounts(state.legacy).map((a) => ({ ...a }));
+    return state.accounts;
+  }
+  function onAccountInput(numero, inp) {
+    const list = editableAccounts();
+    const a = list.find((x) => x.numero === numero); if (!a) return;
+    const raw = inp.value.trim();
+    const v = toNum(raw);
+    if (raw !== "" && !(Number.isFinite(v) && v >= 0)) { inp.setAttribute("aria-invalid", "true"); return; }
+    inp.removeAttribute("aria-invalid");
+    const was = a.capital !== null;
+    a.capital = raw === "" ? null : v;
+    if (a.capital === null) a.ouvert = null;
+    else if (!was) a.ouvert = model ? model.k : 0;
+    render({ keepAccountInputs: true });
+    clearTimeout(accTimer);
+    accTimer = setTimeout(writeAccounts, 700);
+  }
+  function toggleStart(numero) {
+    const list = editableAccounts();
+    const a = list.find((x) => x.numero === numero);
+    if (!a || a.capital === null) return;
+    const k = model ? model.k : 0;
+    if (a.ouvert === 0) { if (k === 0) return; a.ouvert = k; }
+    else a.ouvert = 0;
+    render({ keepAccountInputs: true });
+    clearTimeout(accTimer);
+    writeAccounts();
+  }
+  function renderAccounts(opts) {
+    buildAccountRow();
+    const m = model, list = accounts(), obj = state.settings.objectif;
+    const lock = state.readOnly || state.mode === "pending";
+    // Jour d'ouverture prévu par la courbe idéale pour chaque compte hors départ, dans l'ordre de la ligne.
+    const planned = new Map();
+    let idx = 0;
+    list.forEach((a) => {
+      if (a.capital !== null && a.ouvert === 0) return;
+      planned.set(a.numero, idx < obj - m.N0 ? (m.openings[idx] !== undefined ? m.openings[idx] : null) : "hors");
+      idx++;
+    });
+    const nextAcc = list.find((a) => a.capital === null);
+    list.forEach((a) => {
+      const cell = document.querySelector('.acc[data-numero="' + a.numero + '"]'); if (!cell) return;
+      const inp = cell.querySelector("input"), tag = cell.querySelector(".acc-tag");
+      const active = a.capital !== null;
+      cell.classList.toggle("active", active);
+      cell.classList.toggle("next", !active && nextAcc === a && m.active < obj);
+      if (document.activeElement !== inp) {
+        inp.value = active ? String(a.capital) : "";
+        inp.removeAttribute("aria-invalid");
+      }
+      inp.disabled = lock;
+      const plan = planned.get(a.numero);
+      const planText = plan === "hors" ? "hors objectif" : plan === null || plan === undefined ? "" : "prévu J" + plan;
+      if (active) {
+        tag.disabled = lock || (a.ouvert === 0 && m.k === 0);
+        tag.textContent = a.ouvert === 0 ? "départ" : "ouvert J" + a.ouvert;
+        tag.title = a.ouvert === 0
+          ? (m.k ? "Compte de départ. Toucher pour le marquer ouvert au J" + m.k + "." : "Compte de départ.")
+          : "Ouvert après le J" + a.ouvert + (planText ? " (" + planText + ")" : "") + ". Toucher pour en faire un compte de départ.";
+      } else {
+        tag.disabled = true;
+        tag.title = "";
+        tag.textContent = (cell.classList.contains("next") ? "prochain · " : "") + (planText || (m.N0 ? "après J" + m.xMax : "inactif"));
+      }
+    });
+
+    // Résumé sous la ligne
+    const s = $("#acc-summary"); s.textContent = "";
+    const bold = (t, cls) => { const b = document.createElement("b"); if (cls) b.className = cls; b.textContent = t; return b; };
+    if (m.N0 === 0) {
+      s.append("Renseignez le capital des comptes présents au départ pour tracer la courbe idéale.");
+      return;
+    }
+    s.append("Départ : ", bold(plural(m.N0, "compte", "comptes") + ", " + eur0.format(m.C0)), ". Actifs aujourd'hui : ", bold(m.active + " sur " + list.length), ", objectif ", bold(String(obj)), ". ");
+    if (m.active >= obj) s.append(bold("Objectif atteint.", "go"));
+    else if (nextAcc) {
+      const left = m.nextAt - m.G;
+      if (left <= 0.004) s.append(bold("Seuil atteint : vous pouvez ouvrir le " + nextAcc.numero + ".", "go"));
+      else s.append("Prochain compte : ", bold(nextAcc.numero), " à ", bold(eur0.format(m.nextAt)), " de gains cumulés (encore ", bold(eur0.format(left)), ").");
+    }
+  }
+
+  /* ---------- Chiffres clés ---------- */
   function setDelta(el, v, text) {
     el.className = "value delta " + (v > 0.5 ? "up" : v < -0.5 ? "down" : "flat");
     el.textContent = (v > 0.5 ? "▲ " : v < -0.5 ? "▼ " : "") + text;
   }
-
   function renderKpis() {
     const m = model, p = state.settings, k = m.k, last = m.real[k], id = m.ideal[k];
     $("#k-capital").textContent = eur0.format(last.E);
@@ -607,9 +807,8 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
       $("#k-delta-note").textContent = "Apparaît après le premier jour";
     } else {
       setDelta($("#k-delta"), delta, signed(delta));
+      let note = id.E > 0 ? (delta >= 0 ? "+" : "") + pct1.format(delta / id.E).replace("-", MINUS) + " · " : "";
       const x = idealDayFor(m.ideal, last.E);
-      const pc = pct1.format(delta / id.E);
-      let note = (delta >= 0 ? "+" : "") + pc.replace("-", MINUS) + " · ";
       if (x === null) note += "sous le capital de départ";
       else {
         const lag = k - x;
@@ -619,16 +818,22 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
       $("#k-delta-note").textContent = note;
     }
 
-    $("#k-accounts").textContent = String(last.n);
-    $("#k-accounts-note").textContent = "idéal : " + id.n + (m.cap !== Infinity ? " · plafond " + m.cap : "");
+    const acc = $("#k-accounts"); acc.textContent = String(m.active);
+    const sm = document.createElement("small"); sm.textContent = " / " + p.objectif; acc.appendChild(sm);
+    let an = "idéal aujourd'hui : " + id.n + " · objectif ";
+    if (m.active >= p.objectif) an += "atteint";
+    else {
+      an += m.goalIdeal === null ? "hors d'atteinte (idéal)" : "J" + m.goalIdeal + " idéal";
+      if (m.avg !== null) an += m.goalProj !== null ? ", J" + m.goalProj + " au rythme réel" : ", pas avant J" + m.xMax + " au rythme réel";
+    }
+    $("#k-accounts-note").textContent = an;
 
     if (m.avg === null) {
       $("#k-avg").textContent = "—";
-      $("#k-avg-note").textContent = "objectif " + eur2.format(p.gain) + " par compte et par jour";
+      $("#k-avg-note").textContent = "espéré : " + eur2.format(p.gain) + " par compte et par jour";
     } else {
       $("#k-avg").textContent = eur2.format(Math.round(m.avg * 100) / 100);
-      const r = p.gain > 0 ? pct1.format(m.avg / p.gain) : "—";
-      $("#k-avg-note").textContent = "par compte et par jour · " + r + " de l'objectif";
+      $("#k-avg-note").textContent = "par compte et par jour · " + (p.gain > 0 ? pct1.format(m.avg / p.gain) + " de l'espéré" : "espéré : 0 €");
     }
 
     const H = m.xMax;
@@ -639,7 +844,7 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     } else {
       const pe = m.proj[m.proj.length - 1];
       $("#k-proj").textContent = compactEur(pe.E);
-      $("#k-proj-note").textContent = (pe.d < H ? "capital épuisé à J" + pe.d + " · " : pe.n + " comptes · ") + "idéal : " + compactEur(m.ideal[H].E);
+      $("#k-proj-note").textContent = (pe.d < H ? "capital épuisé à J" + pe.d + " · " : plural(pe.n, "compte", "comptes") + " · ") + "idéal : " + compactEur(m.ideal[H].E);
     }
   }
 
@@ -663,7 +868,7 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     let t = [];
     for (let e = Math.floor(Math.log10(min)); e <= Math.ceil(Math.log10(max)); e++)
       for (const mm of [1, 2, 5]) { const v = mm * Math.pow(10, e); if (v >= min && v <= max) t.push(v); }
-    if (t.length > 7) t = t.filter((v) => Math.abs(Math.log10(v) % 1) < 1e-9 || Math.abs(Math.log10(v) % 1 - Math.log10(3)) < 1e-9);
+    if (t.length > 7) t = t.filter((v) => Math.abs(Math.log10(v) - Math.round(Math.log10(v))) < 1e-9);
     return t;
   }
   function xTickStep(xMax, plotW) {
@@ -678,10 +883,8 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     return n;
   };
   const pathOf = (pts, X, Y) => pts.map((q, i) => (i ? "L" : "M") + X(q.d).toFixed(1) + "," + Y(q.E).toFixed(1)).join("");
+  function margins(W) { return W < 560 ? { l: 46, r: 58, t: 18, b: 26 } : { l: 56, r: 76, t: 20, b: 28 }; }
 
-  function margins(W) { return W < 560 ? { l: 46, r: 58, t: 14, b: 26 } : { l: 56, r: 76, t: 16, b: 28 }; }
-
-  // Tooltip partagé
   function makeTip(wrap) {
     let tip = wrap.querySelector(".tip");
     if (!tip) { tip = document.createElement("div"); tip.className = "tip"; tip.hidden = true; wrap.appendChild(tip); }
@@ -704,10 +907,9 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     tip.hidden = false;
     const W = wrap.clientWidth, tw = tip.offsetWidth, th = tip.offsetHeight;
     let left = x + 14; if (left + tw > W) left = x - tw - 14; if (left < 0) left = Math.max(0, W - tw);
-    let top = Math.max(0, y - th / 2);
+    const top = Math.max(0, y - th / 2);
     tip.style.transform = "translate(" + Math.round(left) + "px," + Math.round(top) + "px)";
   }
-
   function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 
   function tipFor(d) {
@@ -718,16 +920,10 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     if (r) rows.push({ color: cssVar("--real"), value: eur0.format(r.E), name: "réel" + (d > 0 ? " (" + signed(r.gain) + ")" : "") });
     if (pj) rows.push({ color: cssVar("--real"), dashed: true, value: eur0.format(pj.E), name: "projection" });
     rows.push({ color: cssVar("--ideal"), value: eur0.format(id.E), name: "idéal" + (d > 0 ? " (+" + eur0.format(id.gain) + ")" : "") });
-    const cmp = r || pj;
-    let foot = null;
-    if (cmp && d > 0) {
-      const delta = cmp.E - id.E;
-      foot = "Écart " + signed(delta) + " · comptes " + (r ? r.used : pj.used) + " contre " + id.used + " idéal";
-    } else if (d === 0) {
-      foot = state.settings.comptes + " comptes au départ";
-    } else {
-      foot = id.used + " comptes dans le plan idéal";
-    }
+    let foot;
+    if ((r || pj) && d > 0) foot = "Écart " + signed((r || pj).E - id.E) + " · comptes " + (r ? r.used : pj.used) + " contre " + id.used + " idéal";
+    else if (d === 0) foot = plural(m.N0, "compte", "comptes") + " au départ";
+    else foot = plural(id.used, "compte", "comptes") + " dans la courbe idéale";
     const head = "Jour " + d + (r && r.date ? " · " + dFmtLong.format(parseDate(r.date)) : "");
     return { head, rows, foot };
   }
@@ -738,12 +934,23 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     const H = W < 560 ? 270 : 350;
     const mg = margins(W), pw = W - mg.l - mg.r, ph = H - mg.t - mg.b;
     const m = model;
+    wrap.querySelectorAll("svg").forEach((s) => s.remove());
+    const svg = el("svg", { viewBox: "0 0 " + W + " " + H, height: H, role: "img", tabindex: "0",
+      "aria-label": "Courbe du capital réel, idéal et projeté par jour de trading. Flèches gauche et droite pour parcourir les jours." });
+    wrap.prepend(svg);
+    if (m.N0 === 0 && m.k === 0) {
+      el("line", { x1: mg.l, x2: mg.l + pw, y1: mg.t + ph, y2: mg.t + ph, stroke: "var(--axis)", "stroke-width": 1 }, svg);
+      const t = el("text", { x: mg.l + pw / 2, y: mg.t + ph / 2, "text-anchor": "middle", class: "empty-note" }, svg);
+      t.textContent = "Renseignez le capital d'au moins un compte de départ.";
+      svg.setAttribute("tabindex", "-1");
+      return;
+    }
     const all = m.ideal.map((q) => q.E).concat(m.real.map((q) => q.E), m.proj.map((q) => q.E));
     let lo = Math.min(...all), hi = Math.max(...all);
 
     let Y, yTicks;
     if (state.scale === "log") {
-      lo = Math.max(1, lo * 0.9); hi = hi * 1.08;
+      lo = Math.max(1, lo * 0.9); hi = Math.max(lo * 1.5, hi * 1.08);
       const L0 = Math.log10(lo), L1 = Math.log10(hi);
       Y = (v) => mg.t + ph - ((Math.log10(Math.max(v, lo)) - L0) / (L1 - L0)) * ph;
       yTicks = logTicks(lo, hi);
@@ -753,11 +960,6 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
       yTicks = t.ticks;
     }
     const X = (d) => mg.l + (d / m.xMax) * pw;
-
-    wrap.querySelectorAll("svg").forEach((s) => s.remove());
-    const svg = el("svg", { viewBox: "0 0 " + W + " " + H, height: H, role: "img", tabindex: "0",
-      "aria-label": "Courbe du capital réel, idéal et projeté par jour de trading. Flèches gauche et droite pour parcourir les jours." });
-    wrap.prepend(svg);
 
     const g = el("g", {}, svg);
     yTicks.forEach((v) => {
@@ -772,10 +974,8 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
       const t = el("text", { x: X(d), y: H - 8, "text-anchor": "middle", class: "axis-text" }, g);
       t.textContent = "J" + d;
     }
-    // Jour courant
     if (m.k > 0) el("line", { x1: X(m.k), x2: X(m.k), y1: mg.t, y2: mg.t + ph, stroke: "var(--axis)", "stroke-width": 1 }, g);
 
-    // Voile sous la courbe réelle
     if (m.k > 0) {
       const base = mg.t + ph;
       const d = pathOf(m.real, X, Y) + "L" + X(m.k).toFixed(1) + "," + base + "L" + X(0).toFixed(1) + "," + base + "Z";
@@ -787,7 +987,20 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     const last = m.real[m.k];
     el("circle", { cx: X(m.k), cy: Y(last.E), r: 5, fill: "var(--real)", stroke: "var(--surface)", "stroke-width": 2 }, g);
 
-    // Étiquettes de fin de courbe, seulement si elles ne se chevauchent pas
+    // Objectif atteint : repère sur la courbe idéale et sur la projection
+    const goalMark = (d, E, color) => {
+      const x = X(d), y = Y(E);
+      el("circle", { cx: x, cy: y, r: 4.5, fill: color, stroke: "var(--surface)", "stroke-width": 2 }, g);
+      const anchor = x > mg.l + pw - 60 ? "end" : x < mg.l + 60 ? "start" : "middle";
+      const t = el("text", { x, y: y - 10, "text-anchor": anchor, class: "goal-text" }, g);
+      t.textContent = plural(state.settings.objectif, "compte", "comptes");
+    };
+    if (m.goalIdeal && m.goalIdeal <= m.xMax) goalMark(m.goalIdeal, m.ideal[m.goalIdeal].E, "var(--ideal)");
+    if (m.goalProj && m.goalProj > m.k) {
+      const q = m.proj.find((p) => p.d === m.goalProj);
+      if (q && Math.abs(X(m.goalProj) - X(m.goalIdeal || -99)) > 50) goalMark(m.goalProj, q.E, "var(--real)");
+    }
+
     const ends = [{ name: "Idéal", v: m.ideal[m.xMax].E, y: Y(m.ideal[m.xMax].E) }];
     const pe = m.proj[m.proj.length - 1];
     if (pe && pe.d === m.xMax && m.k < m.xMax) ends.push({ name: "Projection", v: pe.E, y: Y(pe.E) });
@@ -799,7 +1012,6 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
       const t2 = el("text", { x: tx, y: y + 12, class: "end-val" }, g); t2.textContent = compactEur(e.v);
     });
 
-    // Couche de survol
     const cross = el("line", { y1: mg.t, y2: mg.t + ph, stroke: "var(--ink-2)", "stroke-width": 1, opacity: 0 }, svg);
     const dotR = el("circle", { r: 4, fill: "var(--real)", stroke: "var(--surface)", "stroke-width": 2, opacity: 0 }, svg);
     const dotI = el("circle", { r: 4, fill: "var(--ideal)", stroke: "var(--surface)", "stroke-width": 2, opacity: 0 }, svg);
@@ -876,11 +1088,7 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     }
     const band = pw / m.xMax;
     const bw = Math.max(2, Math.min(24, band - 2));
-    const bars = [];
-    deltas.forEach((q) => {
-      const p = el("path", { d: barPath(X(q.d) - bw / 2, bw, Y(0), Y(q.v)), fill: q.v >= 0 ? "var(--good-mark)" : "var(--bad-mark)" }, svg);
-      bars.push(p);
-    });
+    const bars = deltas.map((q) => el("path", { d: barPath(X(q.d) - bw / 2, bw, Y(0), Y(q.v)), fill: q.v >= 0 ? "var(--good-mark)" : "var(--bad-mark)" }, svg));
     const last = deltas[deltas.length - 1];
     const lt = el("text", { x: Math.min(X(last.d) + bw / 2 + 6, mg.l + pw + 4), y: Y(last.v) + (last.v >= 0 ? 4 : 12), class: "end-val" }, svg);
     lt.textContent = signed(last.v);
@@ -921,7 +1129,7 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
   function renderJournal() {
     const box = $("#journal"); box.textContent = "";
     const m = model;
-    $("#journal-count").textContent = m.k + (m.k > 1 ? " jours saisis" : " jour saisi");
+    $("#journal-count").textContent = plural(m.k, "jour saisi", "jours saisis");
     if (m.k === 0) {
       const e = document.createElement("p"); e.className = "empty";
       e.textContent = "Aucun jour saisi pour l'instant. Entrez le gain total de la journée dans « Gain du jour » : la courbe réelle, l'écart et la projection se calculent aussitôt.";
@@ -944,7 +1152,6 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
       td(signed(r.gain, eur2), r.gain > 0 ? "pos" : r.gain < 0 ? "neg" : "");
       const cAcc = td(String(r.used));
       if (r.auto) { const s = document.createElement("span"); s.className = "auto"; s.textContent = " auto"; cAcc.appendChild(s); }
-      if (r.opened > 0) { const s = document.createElement("span"); s.className = "auto"; s.textContent = " → " + r.n; s.title = r.opened + " compte(s) ouvert(s) après ce jour"; cAcc.appendChild(s); }
       td(signed(r.perAcc, eur2), r.perAcc > 0 ? "pos" : r.perAcc < 0 ? "neg" : "");
       td(eur0.format(r.E));
       td(eur0.format(id.E));
@@ -974,18 +1181,16 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
   /* ---------- Saisie ---------- */
   const inGain = $("#in-gain"), inDate = $("#in-date"), inAcc = $("#in-accounts");
 
-  function autoAccountsFor(date) {
-    const before = sortedDays().filter((d) => d.date < date);
-    const sim = simulate(state.settings, before);
-    return { n: sim.real[sim.k].n, day: before.length + 1 };
-  }
   function refreshEntryHints() {
     const date = DAY_RE.test(inDate.value) ? inDate.value : todayStr();
-    const a = autoAccountsFor(date);
+    const dayIdx = sortedDays().filter((d) => d.date < date).length + 1;
     const exists = state.days.some((d) => d.date === date);
-    inAcc.placeholder = "auto : " + a.n;
-    $("#accounts-help").textContent = "Vide = " + a.n + " comptes, selon la règle d'ouverture.";
-    $("#entry-day").textContent = "J" + a.day + (exists ? " · déjà saisi" : "");
+    const act = model.active;
+    inAcc.placeholder = act ? String(act) : "auto";
+    $("#accounts-help").textContent = act
+      ? "Vide = " + plural(act, "compte", "comptes") + ", le nombre de cases capital remplies."
+      : "Vide = calcul automatique.";
+    $("#entry-day").textContent = "J" + dayIdx + (exists ? " · déjà saisi" : "");
     $("#btn-save").textContent = exists ? "Mettre à jour le " + shortDate(date) : "Enregistrer";
     $("#btn-cancel").hidden = !state.editing;
     const lock = state.readOnly || state.mode === "pending";
@@ -1021,7 +1226,7 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     const date = inDate.value;
     if (!DAY_RE.test(date)) { setMsg(st, "Choisissez une date.", "err"); inDate.focus(); return; }
     const accRaw = inAcc.value.trim();
-    let comptes = null;
+    let comptes = model.active || null;
     if (accRaw) {
       comptes = Math.round(toNum(accRaw));
       if (!(comptes >= 1)) { setMsg(st, "Le nombre de comptes doit être 1 ou plus, ou rester vide.", "err"); inAcc.focus(); return; }
@@ -1037,41 +1242,37 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
   });
 
   /* ---------- Réglages ---------- */
-  const sIn = { capital: $("#s-capital"), comptes: $("#s-accounts"), gain: $("#s-gain"), horizon: $("#s-horizon"), max: $("#s-max") };
+  const sIn = { gain: $("#s-gain"), pas: $("#s-pas"), objectif: $("#s-objectif"), horizon: $("#s-horizon") };
   function syncSettingsInputs() {
     const s = state.settings;
     for (const k in sIn) {
-      if (document.activeElement === sIn[k]) continue;
-      sIn[k].value = s[k] === null ? "" : String(s[k]);
-      sIn[k].removeAttribute("aria-invalid");
+      if (document.activeElement !== sIn[k]) { sIn[k].value = String(s[k]); sIn[k].removeAttribute("aria-invalid"); }
+      sIn[k].disabled = state.readOnly || state.mode === "pending";
     }
-    const lock = state.readOnly || state.mode === "pending";
-    for (const k in sIn) sIn[k].disabled = lock;
   }
   let settingsTimer = null;
   function readSettingsForm() {
-    const st = $("#settings-status");
-    const c = toNum(sIn.capital.value), n = toNum(sIn.comptes.value), g = toNum(sIn.gain.value), h = toNum(sIn.horizon.value);
-    const mx = sIn.max.value.trim() === "" ? null : toNum(sIn.max.value);
+    const g = toNum(sIn.gain.value), pas = toNum(sIn.pas.value), o = toNum(sIn.objectif.value), h = toNum(sIn.horizon.value);
     const bad = [];
     const mark = (k, isBad) => { sIn[k].setAttribute("aria-invalid", isBad ? "true" : "false"); if (isBad) bad.push(k); };
-    mark("capital", !(c > 0));
-    mark("comptes", !(Number.isInteger(n) && n >= 1));
     mark("gain", !(g >= 0));
+    mark("pas", !(pas > 0));
+    mark("objectif", !(Number.isInteger(o) && o >= 1 && o <= 99));
     mark("horizon", !(Number.isInteger(h) && h >= 5 && h <= 365));
-    mark("max", mx !== null && !(Number.isInteger(mx) && mx >= (Number.isInteger(n) ? n : 1)));
     if (bad.length) {
-      const msgs = { capital: "capital supérieur à 0", comptes: "au moins 1 compte", gain: "gain visé positif ou nul", horizon: "horizon entre 5 et 365 jours", max: "plafond au moins égal aux comptes de départ" };
-      setMsg(st, "À corriger : " + bad.map((k) => msgs[k]).join(", "), "err");
+      const msgs = { gain: "gain espéré positif ou nul", pas: "montant par nouveau compte supérieur à 0", objectif: "objectif entre 1 et 99 comptes", horizon: "horizon entre 5 et 365 jours" };
+      const msg = "À corriger : " + bad.map((k) => msgs[k]).join(", ");
+      setMsg($("#settings-status"), msg, "err");
+      if (bad.includes("gain")) setMsg($("#acc-status"), msg, "err");
       return null;
     }
-    return { capital: c, comptes: n, gain: g, horizon: h, max: mx };
+    setMsg($("#settings-status"), "", ""); setMsg($("#acc-status"), "", "");
+    return { gain: g, pas, objectif: o, horizon: h };
   }
   Object.values(sIn).forEach((inp) => inp.addEventListener("input", () => {
     clearTimeout(settingsTimer);
     const next = readSettingsForm();
     if (!next) return;
-    setMsg($("#settings-status"), "", "");
     state.settings = next;
     render({ keepSettingsInputs: true });
     settingsTimer = setTimeout(writeSettings, 700);
@@ -1100,9 +1301,10 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     const s = state.settings;
     return {
       app: "echelle-comptes",
-      version: 1,
+      version: 2,
       exporte: new Date().toISOString(),
-      reglages: { capital: s.capital, comptes: s.comptes, gain: s.gain, horizon: s.horizon, max: s.max },
+      reglages: { gain: s.gain, pas: s.pas, objectif: s.objectif, horizon: s.horizon },
+      comptes: accounts().map((a) => ({ numero: a.numero, capital: a.capital, ouvert: a.ouvert })),
       jours: sortedDays().map((d) => ({ date: d.date, gain: d.gain, comptes: d.comptes })),
     };
   }
@@ -1154,13 +1356,16 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     }
     const byDate = new Map();
     raw.jours.map(cleanDay).filter(Boolean).forEach((d) => byDate.set(d.date, d));
-    pendingImport = { settings: cleanSettings(raw.reglages), days: [...byDate.values()] };
-    const s = pendingImport.settings;
+    const c = cleanSettings(raw.reglages);
+    // Les sauvegardes version 1 n'ont pas de ligne de comptes : elle se déduit du capital et du nombre de comptes.
+    const accts = cleanAccounts(raw.comptes) || defaultAccounts(c.legacy);
+    pendingImport = { settings: c.settings, legacy: c.legacy, accounts: accts, days: [...byDate.values()] };
     const when = typeof raw.exporte === "string" && !isNaN(Date.parse(raw.exporte)) ? " du " + dFmtLong.format(new Date(raw.exporte)) : "";
     const n = pendingImport.days.length, cur = state.days.length;
-    $("#import-summary").textContent = "Sauvegarde" + when + " : " + n + (n > 1 ? " jours" : " jour") +
-      ", capital " + eur0.format(s.capital) + ", " + s.comptes + " comptes au départ. Elle remplacera les réglages actuels et " +
-      (cur ? "les " + cur + (cur > 1 ? " jours saisis ici." : " jour saisi ici.") : "ne supprimera aucun jour (rien n'est saisi ici).");
+    const actN = accts.filter((a) => a.capital !== null).length;
+    $("#import-summary").textContent = "Sauvegarde" + when + " : " + plural(n, "jour", "jours") + ", " +
+      plural(actN, "compte actif", "comptes actifs") + ". Elle remplacera les comptes, les réglages et " +
+      (cur ? (cur > 1 ? "les " + cur + " jours saisis ici." : "le jour saisi ici.") : "ne supprimera aucun jour (rien n'est saisi ici).");
     $("#import-confirm").hidden = false;
     setMsg(st, "", "");
     $("#btn-import-ok").focus();
@@ -1172,9 +1377,9 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     pendingImport = null;
     $("#import-confirm").hidden = true;
     const st = $("#backup-status");
-    const done = "Import terminé : " + imp.days.length + (imp.days.length > 1 ? " jours" : " jour");
+    const done = "Import terminé : " + plural(imp.days.length, "jour", "jours");
     if (state.mode === "local") {
-      state.settings = imp.settings; state.days = imp.days;
+      state.settings = imp.settings; state.legacy = imp.legacy; state.accounts = imp.accounts; state.days = imp.days;
       saveLocal(); resetEntry(); render();
       flash(st, done, "ok");
       return;
@@ -1184,9 +1389,11 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     try {
       const keep = new Set(imp.days.map((d) => d.date));
       const stale = state.days.filter((d) => !keep.has(d.date)).map((d) => d.date);
-      await db.doc("reglages/principal").set({ ...imp.settings, maj: new Date().toISOString() });
+      const now = new Date().toISOString();
+      await db.doc("reglages/principal").set({ ...imp.settings, capital: imp.legacy.capital, comptes: imp.legacy.comptes, maj: now });
+      await db.doc("reglages/comptes").set({ liste: imp.accounts, maj: now });
       for (const date of stale) await db.doc("jours/" + date).delete();
-      for (const d of imp.days) await db.doc("jours/" + d.date).set({ ...d, maj: new Date().toISOString() });
+      for (const d of imp.days) await db.doc("jours/" + d.date).set({ ...d, maj: now });
       resetEntry();
       flash(st, done, "ok");
     } catch (e) { handleWriteError(e, st); }
@@ -1200,9 +1407,10 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     else n.textContent = "Connexion à l'enregistrement…";
   }
   function render(opts) {
-    model = simulate(state.settings, sortedDays());
+    model = simulate(state.settings, accounts(), sortedDays());
     renderHeader();
     renderKpis();
+    renderAccounts(opts);
     drawMain();
     drawDelta();
     renderJournal();
@@ -1231,17 +1439,21 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
       return;
     }
     db = got; state.mode = "db";
-    let gotSettings = false, gotDays = false;
-    const ready = () => { if (gotSettings && gotDays) render(); };
+    const seen = { settings: false, accounts: false, days: false };
+    const ready = () => { if (seen.settings && seen.accounts && seen.days) render(); };
     const onErr = (e) => { if (e && e.code === "revoked") { state.readOnly = true; render(); } };
     db.doc("reglages/principal").onSnapshot((snap) => {
-      if (snap.exists) state.settings = cleanSettings(snap.data());
-      gotSettings = true; ready();
+      if (snap.exists) { const c = cleanSettings(snap.data()); state.settings = c.settings; state.legacy = c.legacy; }
+      seen.settings = true; ready();
+    }, onErr);
+    db.doc("reglages/comptes").onSnapshot((snap) => {
+      if (snap.exists) state.accounts = cleanAccounts((snap.data() || {}).liste);
+      seen.accounts = true; ready();
     }, onErr);
     db.collection("jours").onSnapshot((snap) => {
       state.days = snap.docs.map((d) => cleanDay(d.data())).filter(Boolean);
       if (state.confirmDelete && !state.days.some((d) => d.date === state.confirmDelete)) state.confirmDelete = null;
-      gotDays = true; ready();
+      seen.days = true; ready();
     }, onErr);
   })();
 })();
