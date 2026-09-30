@@ -99,7 +99,7 @@ header.top { display: flex; flex-direction: column; gap: 8px; }
 
 /* Ligne des comptes */
 .acc-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; }
-@media (min-width: 1100px) { .acc-row { grid-template-columns: repeat(var(--acc-n, 11), minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .acc-row { grid-template-columns: repeat(var(--acc-n, 10), minmax(0, 1fr)); } }
 .acc { display: flex; flex-direction: column; gap: 6px; padding: 9px 8px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); min-width: 0; }
 .acc.active { border-color: var(--real); background: var(--real-wash); }
 .acc-num { display: flex; align-items: center; gap: 6px; font-family: var(--font-data); font-weight: 500; font-size: 0.95rem; color: var(--ink); }
@@ -382,7 +382,7 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
 (function () {
   "use strict";
 
-  const ACCOUNT_NUMBERS = ["400", "889", "003", "975", "906", "668", "914", "176", "358", "398", "757"];
+  const ACCOUNT_NUMBERS = ["400", "889", "003", "975", "906", "668", "914", "176", "358", "398"];
   const DEFAULTS = { gain: 50, pas: 300, objectif: 10, horizon: 20 };
   // Point de départ des premières versions (capital total ÷ comptes), repris tant que
   // la ligne des comptes n'a jamais été enregistrée.
@@ -452,7 +452,8 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     list.forEach((a) => {
       if (!a || typeof a !== "object") return;
       const numero = String(a.numero || "");
-      if (!NUM_RE.test(numero) || seen.has(numero)) return;
+      // Seuls les comptes de la ligne sont gardés (un compte retiré disparaît aussi des sauvegardes).
+      if (!NUM_RE.test(numero) || !ACCOUNT_NUMBERS.includes(numero) || seen.has(numero)) return;
       seen.add(numero);
       const c = toNum(a.capital);
       const capital = Number.isFinite(c) && c >= 0 ? c : null;
