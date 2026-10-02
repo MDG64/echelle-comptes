@@ -137,8 +137,12 @@ header.top { display: flex; flex-direction: column; gap: 8px; }
 .acc-tag.up { color: var(--good); font-weight: 600; }
 .acc-tag.down { color: var(--bad); font-weight: 600; }
 .acc.next .acc-tag { color: var(--ink); font-weight: 600; }
+.acc-mv { display: flex; flex-direction: column; gap: 2px; }
+.acc-mv label { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.02em; }
+.acc .acc-mv input { padding: 5px 8px; font-size: 0.85rem; background: var(--bg); border-color: var(--line); }
+.acc .acc-mv input:not(:placeholder-shown) { border-color: var(--axis); background: var(--surface); }
 .eve-foot { display: grid; gap: 14px; }
-@media (min-width: 760px) { .eve-foot { grid-template-columns: minmax(170px, auto) 230px minmax(0, 1fr); align-items: end; } }
+@media (min-width: 760px) { .eve-foot { grid-template-columns: minmax(170px, auto) minmax(0, 1fr); align-items: end; } }
 .gain-readout { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .gain-readout .label { font-size: 0.82rem; color: var(--ink-2); font-weight: 600; }
 .gain-readout .value { font-family: var(--font-display); font-weight: 700; font-size: 2.1rem; line-height: 1.1; }
@@ -317,7 +321,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     <div class="eve-head">
       <div>
         <h2 id="h-evening">Soldes du soir</h2>
-        <p class="lead">Chaque soir, tapez le solde de chaque compte. Le gain du jour se calcule et s'enregistre tout seul. Case vide = compte inactif.</p>
+        <p class="lead">Chaque soir, tapez le solde de chaque compte. Le gain du jour se calcule et s'enregistre tout seul. Case vide = compte inactif. Un dépôt (+) ou un retrait (−) se met dans la petite case du compte : il change le capital sans compter comme un gain.</p>
       </div>
       <div class="eve-date">
         <label for="eve-date">Soirée du</label>
@@ -330,10 +334,6 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
         <span class="label">Gain du jour</span>
         <span class="value" id="eve-gain">—</span>
         <span class="note" id="eve-note"></span>
-      </div>
-      <div class="field">
-        <label for="eve-flux">Versement (+) ou retrait (−) du jour</label>
-        <input id="eve-flux" type="number" step="any" placeholder="0" autocomplete="off">
       </div>
       <p class="acc-summary" id="acc-summary"></p>
     </div>
@@ -452,7 +452,8 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
   </div>
 
   <p class="foot">
-    <span>Gain du jour = total des soldes du soir − total de la veille − versements du jour.</span>
+    <span>Gain du jour = total des soldes du soir − total de la veille − dépôts du jour + retraits du jour.</span>
+    <span>Les dépôts et retraits déplacent le capital réel et la courbe idéale du même montant : l'écart avec l'idéal ne bouge pas.</span>
     <span>La courbe idéale suppose que chaque jour est un jour de gain.</span>
   </p>
   </div>
@@ -625,7 +626,9 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     if (!soldes && !Number.isFinite(g)) return null;
     let total = toNum(raw.total);
     if (soldes && !Number.isFinite(total)) total = sumSoldes(soldes);
-    const f = toNum(raw.flux);
+    const mouvements = cleanMoves(raw.mouvements);
+    const rf = toNum(raw.flux);
+    const f = Number.isFinite(rf) ? rf : mouvements ? sumSoldes(mouvements) : NaN;
     const c = Math.round(toNum(raw.comptes));
     return {
       date: String(raw.date),
@@ -633,8 +636,17 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       comptes: c >= 1 ? c : soldes ? Object.keys(soldes).length : null,
       soldes,
       total: soldes ? total : null,
-      flux: Number.isFinite(f) ? f : 0,
+      flux: Number.isFinite(f) ? round2(f) : 0,
+      mouvements,
     };
+  }
+  // Dépôts (+) et retraits (−) de la soirée, compte par compte.
+  function cleanMoves(obj) {
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
+    const out = {};
+    let n = 0;
+    ACCOUNT_NUMBERS.forEach((numero) => { const v = toNum(obj[numero]); if (Number.isFinite(v) && v !== 0) { out[numero] = v; n++; } });
+    return n ? out : null;
   }
 
   // Journée du chrono : séances (ouverture → fermeture) et trades (+ gagnant, - perdant), horodatés en heure locale.
@@ -701,7 +713,9 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     return ds.length ? ds[ds.length - 1].soldes : toSoldes(accounts());
   }
 
-  // Gain d'une soirée = total des soldes − total de la soirée précédente − versements du jour.
+  // Gain d'une soirée = total des soldes − total de la soirée précédente − dépôts + retraits du jour.
+  // Le capital réel (E) suit l'argent réellement sur les comptes : départ + gains + dépôts nets (F).
+  // La courbe idéale reçoit les mêmes dépôts aux mêmes jours, si bien que l'écart ne compte que les gains.
   // Un compte s'ajoute à chaque tranche de `pas` € de gains cumulés, jusqu'à l'objectif ;
   // le seuil suivant ne fait que monter : repasser un seuil après une perte n'ouvre rien.
   function simulate(p, activeNow, days) {
@@ -710,8 +724,8 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     const opens = (G, st) => { let o = 0; while (G >= st.nextAt - 1e-9) { o++; st.nextAt += p.pas; } return o; };
     const after = (used, o) => (used >= obj ? used : Math.min(obj, used + o));
 
-    const real = [{ d: 0, E: C0, G: 0, n: N0, total: C0 }];
-    let G = 0, n = N0, sumGain = 0, sumAcc = 0, prevTotal = C0;
+    const real = [{ d: 0, E: C0, G: 0, F: 0, n: N0, total: C0 }];
+    let G = 0, F = 0, n = N0, sumGain = 0, sumAcc = 0, prevTotal = C0;
     const stR = { nextAt: p.pas };
     days.forEach((e, i) => {
       let gain;
@@ -720,10 +734,12 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       gain = round2(gain);
       const used = e.comptes || n;
       G += gain;
+      F = round2(F + e.flux);
       n = after(used, opens(G, stR));
       sumGain += gain; sumAcc += used;
-      real.push({ d: i + 1, date: e.date, gain, used, auto: !e.comptes, perAcc: used ? gain / used : 0, E: C0 + G, G, n, total: prevTotal, flux: e.flux, soldes: e.soldes });
+      real.push({ d: i + 1, date: e.date, gain, used, auto: !e.comptes, perAcc: used ? gain / used : 0, E: C0 + G + F, G, F, n, total: prevTotal, flux: e.flux, soldes: e.soldes });
     });
+    const depositsAt = (d) => real[Math.min(d, real.length - 1)].F;
     const k = days.length;
     const avg = sumAcc > 0 ? sumGain / sumAcc : null;
     const xMax = Math.max(p.horizon, k + (k >= p.horizon ? 5 : 0));
@@ -741,7 +757,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       n = after(used, opens(G, stI));
       for (let j = used; j < n; j++) openings.push(d);
       if (goalIdeal === null && n >= obj) goalIdeal = d;
-      if (d <= xMax) ideal.push({ d, E: C0 + G, G, n, used, gain });
+      if (d <= xMax) ideal.push({ d, E: C0 + G + depositsAt(d), G, n, used, gain });
     }
 
     // Projection : repart d'aujourd'hui avec les comptes actifs et le gain moyen réel.
@@ -757,7 +773,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
         G2 += gain;
         n2 = after(used, opens(G2, stP));
         if (goalProj === null && n2 >= obj) goalProj = d;
-        const E = C0 + G2;
+        const E = C0 + G2 + last.F;
         if (E <= 0) { proj.push({ d, E: 0, n: n2, used, gain }); break; }
         proj.push({ d, E, n: n2, used, gain });
       }
@@ -765,11 +781,12 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     return { C0, N0, active: activeNow, openedReal, real, ideal, proj, avg, k, xMax, openings, goalIdeal, goalProj, nextAt: p.pas * (openedReal + 1), G: real[k].G };
   }
 
-  function idealDayFor(ideal, E) {
-    if (E < ideal[0].E) return null;
+  // Jour de la courbe idéale qui a cumulé autant de gains (dépôts exclus), interpolé.
+  function idealDayFor(ideal, G) {
+    if (G < 0) return null;
     for (let i = 0; i < ideal.length - 1; i++) {
-      const a = ideal[i].E, b = ideal[i + 1].E;
-      if (E >= a && E < b) return b > a ? i + (E - a) / (b - a) : i;
+      const a = ideal[i].G, b = ideal[i + 1].G;
+      if (G >= a && G < b) return b > a ? i + (G - a) / (b - a) : i;
     }
     return ideal.length - 1;
   }
@@ -883,12 +900,23 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       inp.placeholder = "—"; inp.autocomplete = "off";
       inp.setAttribute("aria-label", "Solde du compte " + numero + " ce soir (€)");
       inp.addEventListener("input", onEveningInput);
+      const mv = document.createElement("div"); mv.className = "acc-mv";
+      const mvLab = document.createElement("label"); mvLab.htmlFor = "mv-" + numero; mvLab.textContent = "dépôt / retrait";
+      const mvIn = document.createElement("input");
+      mvIn.type = "number"; mvIn.id = "mv-" + numero; mvIn.step = "any";
+      mvIn.placeholder = "±"; mvIn.autocomplete = "off";
+      mvIn.setAttribute("aria-label", "Dépôt (+) ou retrait (−) sur le compte " + numero + " ce soir (€)");
+      mvIn.addEventListener("input", onEveningInput);
+      mv.append(mvLab, mvIn);
       const tag = document.createElement("span"); tag.className = "acc-tag";
-      cell.append(lab, inp, tag);
+      cell.append(lab, inp, mv, tag);
       row.appendChild(cell);
     });
   }
   const accInput = (numero) => document.getElementById("acc-" + numero);
+  const mvInput = (numero) => document.getElementById("mv-" + numero);
+  // Versement global d'une soirée enregistrée avant les cases par compte : gardé tel quel.
+  let eveLegacyFlux = 0;
 
   // Total et soldes de la dernière soirée avant `date` (le capital de départ s'il n'y en a pas).
   function reference(date) {
@@ -905,34 +933,48 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
   // Ce que montre la ligne pour une soirée : ses soldes s'ils existent, sinon les derniers connus.
   function eveningValues(date) {
     const day = state.days.find((d) => d.date === date);
-    if (day && day.soldes) return { soldes: day.soldes, flux: day.flux, day };
+    if (day && day.soldes) return { soldes: day.soldes, moves: day.mouvements || {}, legacyFlux: day.mouvements ? 0 : day.flux, day };
     const prev = sortedDays().filter((d) => d.date < date && d.soldes);
-    return { soldes: prev.length ? prev[prev.length - 1].soldes : toSoldes(accounts()), flux: 0, day: day || null };
+    return { soldes: prev.length ? prev[prev.length - 1].soldes : toSoldes(accounts()), moves: {}, legacyFlux: 0, day: day || null };
   }
   function readEvening() {
-    const vals = {};
+    const vals = {}, moves = {};
     let invalid = false;
-    ACCOUNT_NUMBERS.forEach((numero) => {
-      const inp = accInput(numero), raw = inp.value.trim();
-      if (raw === "") { inp.removeAttribute("aria-invalid"); return; }
+    const read = (inp, ok) => {
+      const raw = inp.value.trim();
+      if (raw === "") { inp.removeAttribute("aria-invalid"); return null; }
       const v = toNum(raw);
-      if (Number.isFinite(v) && v >= 0) { vals[numero] = v; inp.removeAttribute("aria-invalid"); }
-      else { invalid = true; inp.setAttribute("aria-invalid", "true"); }
+      if (Number.isFinite(v) && ok(v)) { inp.removeAttribute("aria-invalid"); return v; }
+      invalid = true; inp.setAttribute("aria-invalid", "true"); return null;
+    };
+    ACCOUNT_NUMBERS.forEach((numero) => {
+      const v = read(accInput(numero), (x) => x >= 0);
+      if (v !== null) vals[numero] = v;
+      const m = read(mvInput(numero), () => true);
+      if (m) moves[numero] = m;
     });
-    const f = toNum($("#eve-flux").value);
-    return { vals, invalid, flux: Number.isFinite(f) ? f : 0, n: Object.keys(vals).length, total: round2(sumSoldes(vals)) };
+    const nMoves = Object.keys(moves).length;
+    return {
+      vals, moves: nMoves ? moves : null, invalid,
+      flux: round2(sumSoldes(moves) + eveLegacyFlux),
+      n: Object.keys(vals).length, total: round2(sumSoldes(vals)),
+    };
   }
   function prefillEvening(force) {
     if (state.dirty && !force) return;
     const v = eveningValues(state.eveDate);
+    eveLegacyFlux = v.legacyFlux || 0;
     ACCOUNT_NUMBERS.forEach((numero) => {
-      const inp = accInput(numero);
-      if (!force && document.activeElement === inp) return;
-      inp.value = v.soldes[numero] !== undefined ? String(v.soldes[numero]) : "";
-      inp.removeAttribute("aria-invalid");
+      const inp = accInput(numero), mv = mvInput(numero);
+      if (force || document.activeElement !== inp) {
+        inp.value = v.soldes[numero] !== undefined ? String(v.soldes[numero]) : "";
+        inp.removeAttribute("aria-invalid");
+      }
+      if (force || document.activeElement !== mv) {
+        mv.value = v.moves[numero] !== undefined ? String(v.moves[numero]) : "";
+        mv.removeAttribute("aria-invalid");
+      }
     });
-    const fx = $("#eve-flux");
-    if (force || document.activeElement !== fx) fx.value = v.flux ? String(v.flux) : "";
   }
   function renderEvening() {
     const m = model, p = state.settings;
@@ -948,19 +990,24 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       const cell = document.querySelector('.acc[data-numero="' + numero + '"]');
       const inp = accInput(numero), tag = cell.querySelector(".acc-tag");
       inp.disabled = lock;
+      mvInput(numero).disabled = lock;
       const v = cur.vals[numero];
+      const mv = cur.moves && cur.moves[numero] ? cur.moves[numero] : 0;
       const active = v !== undefined;
       cell.classList.toggle("active", active);
       cell.classList.remove("next");
       tag.className = "acc-tag";
       if (active) {
+        // Gain du compte : variation du solde, dépôt ou retrait du soir retiré.
         const before = ref.soldes ? ref.soldes[numero] : undefined;
-        if (before === undefined) tag.textContent = "nouveau";
+        if (before === undefined && !mv) tag.textContent = "nouveau";
         else {
-          const dv = round2(v - before);
-          tag.textContent = Math.abs(dv) < 0.005 ? "= veille" : signed(dv, eur2);
+          const dv = round2(v - (before === undefined ? 0 : before) - mv);
+          tag.textContent = Math.abs(dv) < 0.005 ? (mv ? "gain 0 €" : "= veille") : signed(dv, eur2);
           if (dv > 0.004) tag.classList.add("up"); else if (dv < -0.004) tag.classList.add("down");
         }
+      } else if (mv) {
+        tag.textContent = (mv > 0 ? "dépôt " : "retrait ") + signed(mv, eur2);
       } else {
         // Jour d'ouverture prévu par la courbe idéale, dans l'ordre de la ligne.
         const j = cur.n - m.N0 + emptyIdx;
@@ -972,8 +1019,6 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
         emptyIdx++;
       }
     });
-    $("#eve-flux").disabled = lock;
-
     const gEl = $("#eve-gain");
     if (!cur.n) {
       gEl.className = "value"; gEl.textContent = "—";
@@ -984,6 +1029,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     }
     let note = "J" + (ref.idx + 1) + " · " + dFmtLong.format(parseDate(state.eveDate));
     if (cur.n) note += " · " + plural(cur.n, "compte", "comptes") + ", total " + eur2.format(cur.total) + " (veille " + eur2.format(ref.total) + ")";
+    if (cur.flux) note += " · " + (cur.flux > 0 ? "dépôts " : "retraits ") + signed(cur.flux, eur2) + " hors gain";
     if (state.dirty) note += " · enregistrement…";
     else if (saved && saved.soldes) note += " · enregistré";
     else if (saved) note += " · gain saisi à la main, remplir les soldes le remplacera";
@@ -1016,17 +1062,16 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     const st = $("#eve-status");
     const seq = editSeq;
     const cur = readEvening();
-    if (cur.invalid) { setMsg(st, "Un solde n'est pas un nombre valide : corrigez la case en rouge.", "err"); return; }
+    if (cur.invalid) { setMsg(st, "Une case n'est pas un nombre valide : corrigez la case en rouge.", "err"); return; }
     if (!cur.n) { setMsg(st, "Remplissez au moins un solde pour calculer le gain du jour.", "err"); return; }
     const ref = reference(date);
     const gain = round2(cur.total - ref.total - cur.flux);
-    const ok = await writeDay({ date, gain, comptes: cur.n, soldes: cur.vals, total: cur.total, flux: cur.flux });
+    const ok = await writeDay({ date, gain, comptes: cur.n, soldes: cur.vals, total: cur.total, flux: cur.flux, mouvements: cur.moves });
     if (!ok) return;
     if (seq === editSeq && date === state.eveDate) state.dirty = false;
     flash(st, "Enregistré : gain du " + shortDate(date) + " " + signed(gain, eur2), "ok");
     render();
   }
-  $("#eve-flux").addEventListener("input", onEveningInput);
   $("#eve-date").addEventListener("change", async (ev) => {
     const next = ev.target.value;
     if (!DAY_RE.test(next)) { ev.target.value = state.eveDate; return; }
@@ -1054,7 +1099,8 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     $("#k-capital").textContent = eur0.format(last.E);
     $("#k-capital-note").textContent = k === 0
       ? "Jour 0 · aucune soirée enregistrée"
-      : "J" + k + " · " + shortDate(last.date) + " · " + signed(last.G) + " depuis le départ";
+      : "J" + k + " · " + shortDate(last.date) + " · " + signed(last.G) + " de gains depuis le départ" +
+        (last.F ? ", " + (last.F > 0 ? "dépôts " : "retraits ") + signed(last.F) : "");
 
     const delta = last.E - id.E;
     if (k === 0) {
@@ -1063,8 +1109,8 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     } else {
       setDelta($("#k-delta"), delta, signed(delta));
       let note = id.E > 0 ? (delta >= 0 ? "+" : "") + pct1.format(delta / id.E).replace("-", MINUS) + " · " : "";
-      const x = idealDayFor(m.ideal, last.E);
-      if (x === null) note += "sous le capital de départ";
+      const x = idealDayFor(m.ideal, last.G);
+      if (x === null) note += "en perte depuis le départ";
       else {
         const lag = k - x;
         note += "niveau idéal du J" + num1.format(x);
@@ -1376,7 +1422,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
               { color: r.gain >= 0 ? cssVar("--good-mark") : cssVar("--bad-mark"), value: signed(r.gain, eur2), name: "gain du jour" },
               { color: cssVar("--ideal"), value: "+" + eur0.format(ig), name: "gain idéal" },
             ],
-            foot: "Écart du jour " + signed(r.gain - ig) + " · " + plural(r.used, "compte", "comptes") + ", " + signed(r.perAcc, eur2) + " par compte" + (r.flux ? " · versement " + signed(r.flux) : ""),
+            foot: "Écart du jour " + signed(r.gain - ig) + " · " + plural(r.used, "compte", "comptes") + ", " + signed(r.perAcc, eur2) + " par compte" + (r.flux ? " · " + (r.flux > 0 ? "dépôt " : "retrait ") + signed(r.flux) + " hors gain" : ""),
           };
         },
       });
@@ -1430,7 +1476,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       td(dFmtLong.format(parseDate(r.date)), "date");
       td("J" + r.d);
       const cg = td(signed(r.gain, eur2), r.gain > 0 ? "pos" : r.gain < 0 ? "neg" : "");
-      if (r.flux) { const s = document.createElement("span"); s.className = "auto"; s.textContent = " (versement " + signed(r.flux) + ")"; cg.appendChild(s); }
+      if (r.flux) { const s = document.createElement("span"); s.className = "auto"; s.textContent = " (" + (r.flux > 0 ? "dépôt " : "retrait ") + signed(r.flux) + ")"; cg.appendChild(s); }
       const cAcc = td(String(r.used));
       if (r.auto) { const s = document.createElement("span"); s.className = "auto"; s.textContent = " auto"; cAcc.appendChild(s); }
       td(signed(r.perAcc, eur2), r.perAcc > 0 ? "pos" : r.perAcc < 0 ? "neg" : "");
@@ -1712,7 +1758,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       exporte: new Date().toISOString(),
       reglages: { gain: s.gain, pas: s.pas, objectif: s.objectif, horizon: s.horizon, capital: s.capital, comptes: s.comptes },
       comptes: accounts().map((a) => ({ numero: a.numero, capital: a.capital })),
-      jours: sortedDays().map((d, i) => ({ date: d.date, gain: m.real[i + 1].gain, comptes: d.comptes, soldes: d.soldes, total: d.total, flux: d.flux })),
+      jours: sortedDays().map((d, i) => ({ date: d.date, gain: m.real[i + 1].gain, comptes: d.comptes, soldes: d.soldes, total: d.total, flux: d.flux, mouvements: d.mouvements })),
       chrono: sortedChrono(),
     };
   }
