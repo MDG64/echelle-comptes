@@ -3,7 +3,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-/* Layout : chiffres clés, soldes du soir (pleine largeur), puis deux colonnes (graphiques + journal | plan + sauvegarde) ; une seule colonne sur téléphone. */
+/* Layout : deux onglets. Échelle : chiffres clés, soldes du soir (pleine largeur), puis deux colonnes (graphiques + journal | plan + sauvegarde).
+   Temps de trading : bilan en chiffres clés, puis une journée par bloc avec sa ligne des heures. Une seule colonne sur téléphone. */
 :root {
   --bg: #f1f3ee;
   --surface: #fbfcf9;
@@ -19,6 +20,8 @@
   --good-mark: #1f9d45;
   --bad: #c23a36;
   --bad-mark: #d64a45;
+  --good-wash: rgba(15, 122, 50, 0.09);
+  --bad-wash: rgba(194, 58, 54, 0.09);
   --focus: #2a78d6;
   --btn-ink: #ffffff;
   --shadow: 0 1px 0 rgba(20, 23, 19, 0.04), 0 1px 3px rgba(20, 23, 19, 0.06);
@@ -32,6 +35,7 @@
     --bg: #111310; --surface: #191b18; --ink: #f0f2ec; --ink-2: #c2c7bb; --muted: #8e9489;
     --line: #2a2d28; --axis: #3b3f38; --real: #4b93ea; --real-wash: rgba(75, 147, 234, 0.14);
     --ideal: #a0a598; --good: #3cc463; --good-mark: #2fb356; --bad: #ec7470; --bad-mark: #e25a55;
+    --good-wash: rgba(60, 196, 99, 0.14); --bad-wash: rgba(236, 116, 112, 0.14);
     --focus: #6aa8f0; --btn-ink: #0d1117; --shadow: none; color-scheme: dark;
   }
 }
@@ -39,7 +43,8 @@
   --bg: #111310; --surface: #191b18; --ink: #f0f2ec; --ink-2: #c2c7bb; --muted: #8e9489;
   --line: #2a2d28; --axis: #3b3f38; --real: #4b93ea; --real-wash: rgba(75, 147, 234, 0.14);
   --ideal: #a0a598; --good: #3cc463; --good-mark: #2fb356; --bad: #ec7470; --bad-mark: #e25a55;
-  --focus: #6aa8f0; --btn-ink: #0d1117; --shadow: none; color-scheme: dark;
+  --good-wash: rgba(60, 196, 99, 0.14); --bad-wash: rgba(236, 116, 112, 0.14);
+    --focus: #6aa8f0; --btn-ink: #0d1117; --shadow: none; color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -209,7 +214,43 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
 .file-btn:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
 .import-confirm { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--axis); border-radius: 8px; background: var(--bg); font-size: 0.86rem; }
 
-footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+/* Onglets */
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabs button { font: inherit; font-family: var(--font-display); font-weight: 700; font-size: 1rem; letter-spacing: -0.01em; padding: 10px 14px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: transparent; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.tabs button:hover { color: var(--ink-2); }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.tabs button:focus-visible { outline-offset: -2px; }
+.panel { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.panel:focus { outline: none; }
+
+/* Temps de trading */
+.chrono-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; }
+.chrono-head .lead { font-size: 0.86rem; color: var(--ink-2); max-width: 62ch; margin-top: 2px; }
+.chrono-head .lead code { font-family: var(--font-data); font-size: 0.92em; color: var(--ink); }
+.chrono-days { display: flex; flex-direction: column; }
+.cday { display: flex; flex-direction: column; gap: 10px; padding-block: 16px; border-top: 1px solid var(--line); min-width: 0; }
+.cday:last-child { padding-bottom: 0; }
+.cday-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 16px; }
+.cday-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
+.cday-times { font-size: 0.86rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.cday-times b { color: var(--ink); font-weight: 600; }
+.pill { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 8px; border-radius: 999px; color: var(--real); background: var(--real-wash); }
+.cday-stats { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+.cday-stats .chip { background: var(--bg); }
+.cday-stats .chip.win b { color: var(--good); }
+.cday-stats .chip.lose b { color: var(--bad); }
+.tl { display: flex; flex-wrap: wrap; gap: 6px; }
+.tl-chip { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 54px; padding: 5px 8px 4px; border-radius: 8px; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.tl-chip .tl-n { font-family: var(--font-display); font-weight: 700; font-size: 1.02rem; }
+.tl-chip .tl-n i { font-style: normal; font-size: 0.6em; margin-right: 3px; vertical-align: 0.15em; }
+.tl-chip .tl-t { font-family: var(--font-data); font-size: 0.74rem; }
+.tl-chip.win { color: var(--good); background: var(--good-wash); }
+.tl-chip.lose { color: var(--bad); background: var(--bad-wash); }
+.tl-pause { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px 9px 4px; border: 1px dashed var(--axis); border-radius: 8px; color: var(--muted); font-size: 0.74rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.tl-pause b { font-weight: 600; color: var(--ink-2); }
+.tl-none { font-size: 0.86rem; color: var(--muted); }
+
+.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
@@ -221,6 +262,12 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     <div class="rule-line" id="rules"></div>
   </header>
 
+  <div class="tabs" role="tablist" aria-label="Sections de l'application">
+    <button type="button" role="tab" id="tab-echelle" aria-controls="panel-echelle" aria-selected="true">Échelle</button>
+    <button type="button" role="tab" id="tab-temps" aria-controls="panel-temps" aria-selected="false" tabindex="-1">Temps de trading</button>
+  </div>
+
+  <div class="panel" id="panel-echelle" role="tabpanel" aria-labelledby="tab-echelle">
   <section class="kpis" aria-label="Chiffres clés">
     <div class="kpi hero">
       <span class="label">Capital réel</span>
@@ -387,10 +434,64 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     </div>
   </div>
 
-  <footer class="foot">
-    <span id="store-note">Connexion à l'enregistrement…</span>
+  <p class="foot">
     <span>Gain du jour = total des soldes du soir − total de la veille − versements du jour.</span>
     <span>La courbe idéale suppose que chaque jour est un jour de gain.</span>
+  </p>
+  </div>
+
+  <div class="panel" id="panel-temps" role="tabpanel" aria-labelledby="tab-temps" hidden>
+    <section class="kpis" aria-label="Bilan des temps de trading">
+      <div class="kpi hero">
+        <span class="label">Temps de trading</span>
+        <span class="value" id="t-time">—</span>
+        <span class="note" id="t-time-note">Aucune journée importée</span>
+      </div>
+      <div class="kpi">
+        <span class="label">Trades</span>
+        <span class="value" id="t-trades">—</span>
+        <span class="note" id="t-trades-note">gagnants et perdants</span>
+      </div>
+      <div class="kpi">
+        <span class="label">Gagnants</span>
+        <span class="value" id="t-wins">—</span>
+        <span class="note" id="t-wins-note">clics sur + dans le chrono</span>
+      </div>
+      <div class="kpi">
+        <span class="label">Perdants</span>
+        <span class="value" id="t-losses">—</span>
+        <span class="note" id="t-losses-note">clics sur − dans le chrono</span>
+      </div>
+      <div class="kpi">
+        <span class="label">Rythme</span>
+        <span class="value" id="t-pace">—</span>
+        <span class="note" id="t-pace-note">trades par heure de trading</span>
+      </div>
+    </section>
+
+    <section class="card" id="card-chrono" aria-labelledby="h-chrono">
+      <div class="chrono-head">
+        <div>
+          <h2 id="h-chrono">Journées de trading</h2>
+          <p class="lead">Le chrono note chaque ouverture, chaque fermeture et chaque trade dans <code>chrono-journal.json</code>, à côté de lui sur le Bureau. Importez ce fichier pour ajouter les journées ici.</p>
+        </div>
+        <span class="btn ghost file-btn" id="chrono-wrap">Importer le chrono
+          <input type="file" id="in-chrono" accept=".json,application/json" aria-label="Importer le journal du chrono">
+        </span>
+      </div>
+      <p class="status" id="chrono-status" role="status" aria-live="polite"></p>
+      <div class="chrono-days" id="chrono-days"></div>
+    </section>
+
+    <p class="foot">
+      <span>Temps de trading = durée pendant laquelle le chrono est ouvert, pauses déduites.</span>
+      <span>Fermer puis rouvrir le chrono dans la même journée compte comme une pause.</span>
+      <span>Une journée de trading se termine à 5 h du matin.</span>
+    </p>
+  </div>
+
+  <footer class="foot">
+    <span id="store-note">Connexion à l'enregistrement…</span>
   </footer>
 </div>
 
@@ -409,6 +510,8 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     startFromOuvert: null, // point de départ des versions précédentes (comptes marqués « départ »)
     accounts: null,        // ligne de départ ; null = jamais enregistrée
     days: [],              // [{date, gain, comptes, soldes|null, total|null, flux}]
+    chrono: [],            // journées du chrono : [{date, sessions: [{ouverture, fermeture, en_cours}], trades: [{n, heure, resultat}]}]
+    confirmChrono: null,
     scale: "lin",
     mode: "pending",       // pending | db | local
     readOnly: false,
@@ -517,6 +620,62 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     };
   }
 
+  // Journée du chrono : séances (ouverture → fermeture) et trades (+ gagnant, - perdant), horodatés en heure locale.
+  const STAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/;
+  const cleanStamp = (v) => (typeof v === "string" && STAMP_RE.test(v) && !isNaN(Date.parse(v)) ? v : null);
+  function cleanChronoDay(raw) {
+    if (!raw || typeof raw !== "object" || !DAY_RE.test(String(raw.date))) return null;
+    const sessions = (Array.isArray(raw.sessions) ? raw.sessions : []).map((x) => {
+      const a = cleanStamp(x && x.ouverture);
+      if (!a) return null;
+      const b = cleanStamp(x.fermeture);
+      return { ouverture: a, fermeture: b && b >= a ? b : a, en_cours: x.en_cours === true };
+    }).filter(Boolean).sort((x, y) => x.ouverture.localeCompare(y.ouverture));
+    const trades = (Array.isArray(raw.trades) ? raw.trades : []).map((x) => {
+      const h = cleanStamp(x && x.heure);
+      return h && (x.resultat === "+" || x.resultat === "-") ? { heure: h, resultat: x.resultat } : null;
+    }).filter(Boolean).sort((x, y) => x.heure.localeCompare(y.heure)).map((t, i) => ({ n: i + 1, heure: t.heure, resultat: t.resultat }));
+    if (!sessions.length && !trades.length) return null;
+    return { date: String(raw.date), sessions, trades };
+  }
+  function sortedChrono() { return state.chrono.slice().sort((a, b) => a.date.localeCompare(b.date)); }
+
+  // Bilan d'une journée. Deux séances séparées de moins d'une minute n'en font qu'une
+  // (relance immédiate du chrono) ; au-delà, l'intervalle est une pause. Les durées se comptent
+  // entre les heures affichées (à la minute) : 10:31 → 11:05 fait toujours 34 min, et les totaux tombent juste.
+  const PAUSE_MIN_MS = 60000;
+  const toMinute = (ms) => Math.floor(ms / 60000) * 60000;
+  function chronoStats(day) {
+    const blocks = [];
+    day.sessions.forEach((s) => {
+      const a = Date.parse(s.ouverture), b = Date.parse(s.fermeture);
+      const last = blocks[blocks.length - 1];
+      if (last && a - last.b < PAUSE_MIN_MS) last.b = Math.max(last.b, b);
+      else blocks.push({ a, b });
+    });
+    if (!blocks.length && day.trades.length) {
+      blocks.push({ a: Date.parse(day.trades[0].heure), b: Date.parse(day.trades[day.trades.length - 1].heure) });
+    }
+    blocks.forEach((k) => { k.a = toMinute(k.a); k.b = toMinute(k.b); });
+    const pauses = [];
+    for (let i = 1; i < blocks.length; i++) pauses.push({ a: blocks[i - 1].b, b: blocks[i].a });
+    const wins = day.trades.filter((t) => t.resultat === "+").length;
+    const lastS = day.sessions[day.sessions.length - 1];
+    return {
+      open: blocks[0].a, close: blocks[blocks.length - 1].b,
+      ms: blocks.reduce((sum, k) => sum + (k.b - k.a), 0),
+      pauses, pauseMs: pauses.reduce((sum, k) => sum + (k.b - k.a), 0),
+      trades: day.trades.length, wins, losses: day.trades.length - wins,
+      live: !!(lastS && lastS.en_cours) && day.date === defaultEveDate(),
+    };
+  }
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const clock = (ms) => { const d = new Date(ms); return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); };
+  function fmtDur(ms) {
+    const min = Math.max(0, Math.round(ms / 60000));
+    return min < 60 ? min + " min" : Math.floor(min / 60) + " h " + pad2(min % 60);
+  }
+
   /* ---------- Modèle ---------- */
   function sortedDays() { return state.days.slice().sort((a, b) => a.date.localeCompare(b.date)); }
   // Derniers soldes connus : la dernière soirée enregistrée, sinon la ligne de départ.
@@ -601,7 +760,7 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
   /* ---------- Stockage ---------- */
   function saveLocal() {
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify({ v: 3, settings: state.settings, accounts: state.accounts, days: state.days }));
+      localStorage.setItem(LS_KEY, JSON.stringify({ v: 3, settings: state.settings, accounts: state.accounts, days: state.days, chrono: state.chrono }));
     } catch (e) { /* stockage indisponible */ }
   }
   function loadLocal() {
@@ -613,6 +772,7 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
       state.accounts = ca.list;
       if (raw.v !== 3 && ca.start) { state.settings.capital = ca.start.capital; state.settings.comptes = Math.min(ca.start.comptes, ACCOUNT_NUMBERS.length); }
       state.days = (raw.days || []).map(cleanDay).filter(Boolean);
+      state.chrono = (Array.isArray(raw.chrono) ? raw.chrono : []).map(cleanChronoDay).filter(Boolean);
     } catch (e) { /* ignoré */ }
   }
 
@@ -1288,6 +1448,188 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     table.appendChild(tb); scroll.appendChild(table); box.appendChild(scroll);
   }
 
+  /* ---------- Temps de trading (journal du chrono) ---------- */
+  function renderChronoKpis(days) {
+    const st = days.map(chronoStats);
+    const n = days.length;
+    const ms = st.reduce((a, x) => a + x.ms, 0);
+    const trades = st.reduce((a, x) => a + x.trades, 0);
+    const wins = st.reduce((a, x) => a + x.wins, 0);
+    const losses = trades - wins;
+    $("#t-time").textContent = n ? fmtDur(ms) : "—";
+    $("#t-time-note").textContent = n
+      ? plural(n, "journée", "journées") + " · " + fmtDur(ms / n) + " par jour en moyenne"
+      : "Aucune journée importée";
+    $("#t-trades").textContent = n ? String(trades) : "—";
+    $("#t-trades-note").textContent = n ? num1.format(trades / n) + " par jour en moyenne" : "gagnants et perdants";
+    const w = $("#t-wins"), l = $("#t-losses");
+    w.className = "value" + (n && wins ? " delta up" : ""); w.textContent = n ? String(wins) : "—";
+    l.className = "value" + (n && losses ? " delta down" : ""); l.textContent = n ? String(losses) : "—";
+    $("#t-wins-note").textContent = trades ? pct1.format(wins / trades) + " des trades" : "clics sur + dans le chrono";
+    $("#t-losses-note").textContent = trades ? pct1.format(losses / trades) + " des trades" : "clics sur − dans le chrono";
+    $("#t-pace").textContent = ms >= 60000 && trades ? num1.format(trades / (ms / 3600000)) : "—";
+  }
+  function renderChrono() {
+    const days = sortedChrono();
+    renderChronoKpis(days);
+    const lock = state.readOnly || state.mode === "pending";
+    $("#in-chrono").disabled = lock;
+    $("#chrono-wrap").hidden = state.readOnly;
+    const box = $("#chrono-days"); box.textContent = "";
+    if (!days.length) {
+      const e = document.createElement("p"); e.className = "empty";
+      e.textContent = state.readOnly
+        ? "Aucune journée de trading importée pour l'instant."
+        : "Aucune journée importée pour l'instant. Cliquez sur « Importer le chrono » et choisissez chrono-journal.json : chaque journée s'affiche ici avec son heure d'ouverture et de fermeture, ses pauses, sa ligne des heures et son bilan.";
+      box.appendChild(e); return;
+    }
+    const mk = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
+    const stat = (label, value, cls) => { const c = mk("span", "chip" + (cls ? " " + cls : "")); c.append(label + " ", mk("b", "", value)); return c; };
+    for (let i = days.length - 1; i >= 0; i--) {
+      const day = days[i], s = chronoStats(day);
+      const blk = mk("article", "cday");
+
+      const head = mk("div", "cday-head");
+      const title = mk("div", "cday-title");
+      title.append(mk("h3", "", dFmtLong.format(parseDate(day.date))));
+      if (s.live) title.append(mk("span", "pill", "en cours"));
+      const times = mk("span", "cday-times");
+      times.append("Ouverture ", mk("b", "", clock(s.open)), " · " + (s.live ? "dernier relevé " : "fermeture "), mk("b", "", clock(s.close)));
+      if (s.pauses.length) times.append(" · " + plural(s.pauses.length, "pause", "pauses") + " (" + fmtDur(s.pauseMs) + ")");
+      title.append(times);
+      head.append(title);
+      if (!state.readOnly) {
+        const act = mk("span", "");
+        if (state.confirmChrono === day.date) {
+          const yes = mk("button", "link danger", "Confirmer la suppression"); yes.type = "button";
+          yes.addEventListener("click", async () => {
+            state.confirmChrono = null;
+            await removeChronoDay(day.date);
+            flash($("#chrono-status"), "Journée du " + shortDate(day.date) + " supprimée", "ok");
+          });
+          const no = mk("button", "link", "Garder"); no.type = "button";
+          no.addEventListener("click", () => { state.confirmChrono = null; renderChrono(); });
+          act.append(yes, no);
+        } else {
+          const del = mk("button", "link danger", "Supprimer"); del.type = "button";
+          del.setAttribute("aria-label", "Supprimer la journée du " + shortDate(day.date));
+          del.addEventListener("click", () => { state.confirmChrono = day.date; renderChrono(); });
+          act.append(del);
+        }
+        head.append(act);
+      }
+      blk.append(head);
+
+      const stats = mk("div", "cday-stats");
+      stats.append(stat("Temps de trading", fmtDur(s.ms)), stat("Trades", String(s.trades)),
+        stat("Gagnants", String(s.wins), "win"), stat("Perdants", String(s.losses), "lose"));
+      if (s.trades) stats.append(stat("Réussite", pct1.format(s.wins / s.trades)));
+      blk.append(stats);
+
+      // Ligne des heures : un trade par case, dans l'ordre, les pauses à leur place.
+      const tl = mk("div", "tl");
+      tl.setAttribute("role", "list");
+      tl.setAttribute("aria-label", "Ligne des heures du " + shortDate(day.date));
+      const items = day.trades.map((t) => ({ at: Date.parse(t.heure), trade: t }))
+        .concat(s.pauses.map((p) => ({ at: p.a, pause: p })))
+        .sort((x, y) => x.at - y.at || (x.pause ? 1 : -1));
+      items.forEach((it) => {
+        if (it.pause) {
+          const c = mk("span", "tl-pause"); c.setAttribute("role", "listitem");
+          c.append(mk("b", "", "pause " + fmtDur(it.pause.b - it.pause.a)), mk("span", "", clock(it.pause.a) + " → " + clock(it.pause.b)));
+          tl.append(c);
+        } else {
+          const win = it.trade.resultat === "+";
+          const c = mk("span", "tl-chip " + (win ? "win" : "lose")); c.setAttribute("role", "listitem");
+          c.setAttribute("aria-label", "Trade " + it.trade.n + ", " + (win ? "gagnant" : "perdant") + ", " + clock(it.at));
+          const num = mk("span", "tl-n"); num.setAttribute("aria-hidden", "true");
+          num.append(mk("i", "", win ? "▲" : "▼"), String(it.trade.n));
+          const hour = mk("span", "tl-t", clock(it.at)); hour.setAttribute("aria-hidden", "true");
+          c.append(num, hour);
+          tl.append(c);
+        }
+      });
+      if (!day.trades.length) tl.append(mk("span", "tl-none", "Aucun trade noté ce jour-là."));
+      blk.append(tl);
+      box.appendChild(blk);
+    }
+  }
+  async function removeChronoDay(date) {
+    if (state.mode === "local") {
+      state.chrono = state.chrono.filter((d) => d.date !== date);
+      saveLocal(); renderChrono(); return;
+    }
+    if (state.mode !== "db" || state.readOnly) return;
+    try { await db.doc("chrono/" + date).delete(); }
+    catch (e) { handleWriteError(e, $("#chrono-status")); }
+  }
+  // Le journal fait foi pour les journées qu'il contient ; les autres journées déjà importées restent.
+  $("#in-chrono").addEventListener("change", async (ev) => {
+    const st = $("#chrono-status");
+    const file = ev.target.files && ev.target.files[0];
+    ev.target.value = "";
+    if (!file) return;
+    let raw = null;
+    try { raw = JSON.parse(await file.text()); } catch (e) { raw = null; }
+    if (!raw || raw.app !== "chrono-trading" || !Array.isArray(raw.jours)) {
+      setMsg(st, "Ce fichier n'est pas le journal du chrono. Choisissez chrono-journal.json, à côté du chrono.", "err");
+      return;
+    }
+    const byDate = new Map();
+    raw.jours.map(cleanChronoDay).filter(Boolean).forEach((d) => byDate.set(d.date, d));
+    const days = [...byDate.values()];
+    if (!days.length) { setMsg(st, "Le journal ne contient encore aucune journée.", ""); return; }
+    const cur = new Map(state.chrono.map((d) => [d.date, JSON.stringify(d)]));
+    const changed = days.filter((d) => cur.get(d.date) !== JSON.stringify(d));
+    if (!changed.length) { flash(st, "Déjà à jour : " + plural(days.length, "journée", "journées") + " dans le journal.", "ok"); return; }
+    const added = changed.filter((d) => !cur.has(d.date)).length, updated = changed.length - added;
+    const done = "Import terminé : " + [added ? plural(added, "nouvelle journée", "nouvelles journées") : "", updated ? plural(updated, "journée mise à jour", "journées mises à jour") : ""].filter(Boolean).join(", ");
+    if (state.mode === "local") {
+      const keep = new Set(changed.map((d) => d.date));
+      state.chrono = state.chrono.filter((d) => !keep.has(d.date)).concat(changed);
+      saveLocal(); renderChrono();
+      flash(st, done, "ok");
+      return;
+    }
+    if (state.mode !== "db" || state.readOnly) return;
+    setMsg(st, "Import en cours…", "");
+    try {
+      const now = new Date().toISOString();
+      for (const d of changed) await db.doc("chrono/" + d.date).set({ ...d, maj: now });
+      flash(st, done, "ok");
+    } catch (e) { handleWriteError(e, st); }
+  });
+
+  /* ---------- Onglets ---------- */
+  const TABS = ["echelle", "temps"];
+  function setTab(name, opts) {
+    if (!TABS.includes(name)) name = TABS[0];
+    TABS.forEach((t) => {
+      const on = t === name, b = $("#tab-" + t);
+      b.setAttribute("aria-selected", String(on));
+      b.tabIndex = on ? 0 : -1;
+      $("#panel-" + t).hidden = !on;
+    });
+    if (!opts || opts.remember !== false) { try { localStorage.setItem(LS_KEY + "-tab", name); } catch (e) { /* ignoré */ } }
+    if (opts && opts.focus) $("#tab-" + name).focus();
+  }
+  TABS.forEach((t, i) => {
+    const b = $("#tab-" + t);
+    b.addEventListener("click", () => setTab(t));
+    b.addEventListener("keydown", (ev) => {
+      const to = ev.key === "ArrowRight" ? (i + 1) % TABS.length : ev.key === "ArrowLeft" ? (i + TABS.length - 1) % TABS.length
+        : ev.key === "Home" ? 0 : ev.key === "End" ? TABS.length - 1 : -1;
+      if (to < 0) return;
+      ev.preventDefault();
+      setTab(TABS[to], { focus: true });
+    });
+  });
+  (function initTab() {
+    let name = (location.hash || "").replace("#", "");
+    if (!TABS.includes(name)) { try { name = localStorage.getItem(LS_KEY + "-tab"); } catch (e) { name = null; } }
+    setTab(name, { remember: false });
+  })();
+
   /* ---------- Plan (réglages) ---------- */
   const sIn = { gain: $("#s-gain"), pas: $("#s-pas"), objectif: $("#s-objectif"), capital: $("#s-capital"), comptes: $("#s-comptes"), horizon: $("#s-horizon") };
   function syncSettingsInputs() {
@@ -1354,6 +1696,7 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
       reglages: { gain: s.gain, pas: s.pas, objectif: s.objectif, horizon: s.horizon, capital: s.capital, comptes: s.comptes },
       comptes: accounts().map((a) => ({ numero: a.numero, capital: a.capital })),
       jours: sortedDays().map((d, i) => ({ date: d.date, gain: m.real[i + 1].gain, comptes: d.comptes, soldes: d.soldes, total: d.total, flux: d.flux })),
+      chrono: sortedChrono(),
     };
   }
   function renderBackup() {
@@ -1408,12 +1751,15 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     const ca = cleanAccounts(raw.comptes);
     // Version 2 : le départ était donné par les comptes marqués « départ ».
     if ((raw.version || 1) < 3 && ca.start) { settings.capital = ca.start.capital; settings.comptes = Math.min(ca.start.comptes, ACCOUNT_NUMBERS.length); }
-    pendingImport = { settings, accounts: ca.list, days: [...byDate.values()] };
+    // Journées du chrono : absentes des sauvegardes d'avant l'onglet « Temps de trading » ; on garde alors celles d'ici.
+    const chrono = Array.isArray(raw.chrono) ? raw.chrono.map(cleanChronoDay).filter(Boolean) : null;
+    pendingImport = { settings, accounts: ca.list, days: [...byDate.values()], chrono };
     const when = typeof raw.exporte === "string" && !isNaN(Date.parse(raw.exporte)) ? " du " + dFmtLong.format(new Date(raw.exporte)) : "";
     const n = pendingImport.days.length, cur = state.days.length;
     $("#import-summary").textContent = "Sauvegarde" + when + " : " + plural(n, "jour", "jours") + ", départ " +
       plural(settings.comptes, "compte", "comptes") + " et " + eur0.format(settings.capital) + ". Elle remplacera le plan, les comptes et " +
-      (cur ? (cur > 1 ? "les " + cur + " jours enregistrés ici." : "le jour enregistré ici.") : "ne supprimera aucun jour (rien n'est enregistré ici).");
+      (cur ? (cur > 1 ? "les " + cur + " jours enregistrés ici." : "le jour enregistré ici.") : "ne supprimera aucun jour (rien n'est enregistré ici).") +
+      (chrono ? " Ses " + plural(chrono.length, "journée", "journées") + " de chrono remplaceront aussi celles de l'onglet Temps de trading." : "");
     $("#import-confirm").hidden = false;
     setMsg(st, "", "");
     $("#btn-import-ok").focus();
@@ -1429,6 +1775,7 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     state.dirty = false;
     if (state.mode === "local") {
       state.settings = imp.settings; state.accounts = imp.accounts; state.days = imp.days;
+      if (imp.chrono) state.chrono = imp.chrono;
       saveLocal(); prefillEvening(true); render();
       flash(st, done, "ok");
       return;
@@ -1443,6 +1790,11 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
       if (imp.accounts) await db.doc("reglages/comptes").set({ liste: imp.accounts, maj: now });
       for (const date of stale) await db.doc("jours/" + date).delete();
       for (const d of imp.days) await db.doc("jours/" + d.date).set({ ...d, maj: now });
+      if (imp.chrono) {
+        const keepC = new Set(imp.chrono.map((d) => d.date));
+        for (const d of state.chrono.filter((x) => !keepC.has(x.date))) await db.doc("chrono/" + d.date).delete();
+        for (const d of imp.chrono) await db.doc("chrono/" + d.date).set({ ...d, maj: now });
+      }
       prefillEvening(true);
       flash(st, done, "ok");
     } catch (e) { handleWriteError(e, st); }
@@ -1465,6 +1817,7 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
     drawGains();
     drawDelta();
     renderJournal();
+    renderChrono();
     if (!opts || !opts.keepSettingsInputs) syncSettingsInputs();
     renderStoreNote();
     renderBackup();
@@ -1512,6 +1865,11 @@ footer.foot { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: 
       state.days = snap.docs.map((d) => cleanDay(d.data())).filter(Boolean);
       if (state.confirmDelete && !state.days.some((d) => d.date === state.confirmDelete)) state.confirmDelete = null;
       seen.days = true; ready();
+    }, onErr);
+    db.collection("chrono").onSnapshot((snap) => {
+      state.chrono = snap.docs.map((d) => cleanChronoDay(d.data())).filter(Boolean);
+      if (state.confirmChrono && !state.chrono.some((d) => d.date === state.confirmChrono)) state.confirmChrono = null;
+      renderChrono();
     }, onErr);
   })();
 })();
