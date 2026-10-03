@@ -454,7 +454,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
   <p class="foot">
     <span>Gain du jour = total des soldes du soir − total de la veille − dépôts du jour + retraits du jour.</span>
     <span>Les dépôts et retraits déplacent le capital réel et la courbe idéale du même montant : l'écart avec l'idéal ne bouge pas.</span>
-    <span>La courbe idéale suppose que chaque jour est un jour de gain, au gain espéré sur chaque compte actif, avec un compte de plus par tranche de gains du Plan.</span>
+    <span>La courbe idéale suit le Plan seul : comptes au départ, gain espéré chaque jour sur chaque compte, un compte de plus par tranche de gains.</span>
   </p>
   </div>
 
@@ -748,21 +748,18 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     // Un compte ouvert autrement (avec un dépôt) compte tout de suite : le palier suivant reste N0 + tranches + 1.
     const byRule = (G) => Math.min(obj, N0 + Math.floor(G / p.pas + 1e-9));
 
-    // Courbe idéale : chaque jour enregistré, au moins les comptes réellement actifs ce jour-là, au gain espéré ;
-    // ensuite, au moins les comptes actifs aujourd'hui. Prolongée hors graphique jusqu'à l'objectif pour dater chaque ouverture.
+    // Courbe idéale : le Plan seul (comptes au départ, gain espéré, un compte par tranche de gains), plus les dépôts réels
+    // aux mêmes jours. Prolongée hors graphique jusqu'à l'objectif pour dater chaque ouverture.
     const ideal = [{ d: 0, E: C0, G: 0, n: N0 }];
     const openings = [];
-    const mark = (from, to, d) => { for (let j = from; j < to; j++) if (j >= N0 && openings[j - N0] === undefined) openings[j - N0] = d; };
     let goalIdeal = N0 >= obj ? 0 : null;
     G = 0; n = N0;
     const canGrow = N0 > 0 && p.gain > 0;
     for (let d = 1; d <= xMax || (canGrow && goalIdeal === null && d <= 3650); d++) {
-      const floor = d <= k ? real[d].used : activeNow;
-      const used = Math.max(n, floor), gain = p.gain * used;
-      mark(n, used, d);
+      const used = n, gain = p.gain * used;
       G += gain;
       n = Math.max(used, byRule(G));
-      mark(used, n, d);
+      for (let j = used; j < n; j++) openings.push(d);
       if (goalIdeal === null && n >= obj) goalIdeal = d;
       if (d <= xMax) ideal.push({ d, E: C0 + G + depositsAt(d), G, n, used, gain });
     }
@@ -1305,17 +1302,19 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     const last = m.real[m.k];
     el("circle", { cx: X(m.k), cy: Y(last.E), r: 5, fill: "var(--real)", stroke: "var(--surface)", "stroke-width": 2 }, g);
 
-    const goalMark = (d, E, color) => {
+    // L'idéal passe sous la projection : son étiquette se met sous le point pour ne pas chevaucher l'autre.
+    const goalMark = (d, E, color, below) => {
       const x = X(d), y = Y(E);
       el("circle", { cx: x, cy: y, r: 4.5, fill: color, stroke: "var(--surface)", "stroke-width": 2 }, g);
       const anchor = x > mg.l + pw - 60 ? "end" : x < mg.l + 60 ? "start" : "middle";
-      const t = el("text", { x, y: y - 10, "text-anchor": anchor, class: "goal-text" }, g);
+      const t = el("text", { x, y: below ? y + 20 : y - 10, "text-anchor": anchor, class: "goal-text" }, g);
       t.textContent = plural(state.settings.objectif, "compte", "comptes");
     };
-    if (m.goalIdeal && m.goalIdeal <= m.xMax) goalMark(m.goalIdeal, m.ideal[m.goalIdeal].E, "var(--ideal)");
+    if (m.goalIdeal && m.goalIdeal <= m.xMax) goalMark(m.goalIdeal, m.ideal[m.goalIdeal].E, "var(--ideal)", true);
     if (m.goalProj && m.goalProj > m.k) {
       const q = m.proj.find((p) => p.d === m.goalProj);
-      if (q && Math.abs(X(m.goalProj) - X(m.goalIdeal || -99)) > 50) goalMark(m.goalProj, q.E, "var(--real)");
+      const gi = m.goalIdeal && m.goalIdeal <= m.xMax ? m.ideal[m.goalIdeal] : null;
+      if (q && (!gi || Math.abs(X(m.goalProj) - X(gi.d)) > 50 || Y(gi.E) - Y(q.E) > 24)) goalMark(m.goalProj, q.E, "var(--real)");
     }
 
     const ends = [{ name: "Idéal", v: m.ideal[m.xMax].E, y: Y(m.ideal[m.xMax].E) }];
