@@ -351,7 +351,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
           <div class="legend">
             <span><i class="key real"></i>Réel</span>
             <span><i class="key ideal"></i>Idéal</span>
-            <span><i class="key proj"></i>Projection (moyenne réelle)</span>
+            <span><i class="key proj"></i>Projection (comptes actuels × gain espéré)</span>
           </div>
           <div class="seg" role="group" aria-label="Échelle de l'axe vertical">
             <button type="button" id="scale-lin" aria-pressed="true">Linéaire</button>
@@ -760,16 +760,16 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       if (d <= xMax) ideal.push({ d, E: C0 + G + depositsAt(d), G, n, used, gain });
     }
 
-    // Projection : repart d'aujourd'hui avec les comptes actifs et le gain moyen réel.
+    // Projection : repart d'aujourd'hui (capital réel, comptes actifs) au gain espéré par compte du Plan.
     const proj = [];
     let goalProj = activeNow >= obj ? k : null;
-    if (avg !== null) {
+    if (k > 0) {
       const last = real[k];
       let G2 = last.G, n2 = Math.max(1, activeNow);
       const stP = { nextAt: p.pas * (openedReal + 1) };
       proj.push({ d: k, E: last.E, n: n2 });
       for (let d = k + 1; d <= xMax; d++) {
-        const used = n2, gain = avg * used;
+        const used = n2, gain = p.gain * used;
         G2 += gain;
         n2 = after(used, opens(G2, stP));
         if (goalProj === null && n2 >= obj) goalProj = d;
@@ -1125,7 +1125,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     if (m.active >= p.objectif) an += "atteint";
     else {
       an += m.goalIdeal === null ? "hors d'atteinte (idéal)" : "J" + m.goalIdeal + " idéal";
-      if (m.avg !== null) an += m.goalProj !== null ? ", J" + m.goalProj + " au rythme réel" : ", pas avant J" + m.xMax + " au rythme réel";
+      if (m.proj.length) an += m.goalProj !== null ? ", J" + m.goalProj + " en projection" : ", pas avant J" + m.xMax + " en projection";
     }
     $("#k-accounts-note").textContent = an;
 
