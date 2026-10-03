@@ -437,7 +437,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
   <p class="foot">
     <span>Gain du jour = total des soldes du soir − total de la veille − dépôts du jour + retraits du jour.</span>
     <span>Les dépôts et retraits déplacent le capital réel et la courbe idéale du même montant : l'écart avec l'idéal ne bouge pas.</span>
-    <span>La courbe idéale suppose que chaque jour est un jour de gain.</span>
+    <span>La courbe idéale suppose que chaque jour est un jour de gain, au gain espéré sur chaque compte actif, avec un compte de plus par tranche de gains du Plan.</span>
   </p>
   </div>
 
@@ -727,34 +727,40 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     const avg = sumAcc > 0 ? sumGain / sumAcc : null;
     const xMax = Math.max(p.horizon, k + (k >= p.horizon ? 5 : 0));
 
-    // Courbe idéale, prolongée hors graphique jusqu'à l'objectif pour dater chaque ouverture.
+    // Règle des paliers : N0 comptes, plus un par tranche de `pas` € de gains cumulés, jusqu'à l'objectif.
+    // Un compte ouvert autrement (avec un dépôt) compte tout de suite : le palier suivant reste N0 + tranches + 1.
+    const byRule = (G) => Math.min(obj, N0 + Math.floor(G / p.pas + 1e-9));
+
+    // Courbe idéale : chaque jour enregistré, au moins les comptes réellement actifs ce jour-là, au gain espéré ;
+    // ensuite, au moins les comptes actifs aujourd'hui. Prolongée hors graphique jusqu'à l'objectif pour dater chaque ouverture.
     const ideal = [{ d: 0, E: C0, G: 0, n: N0 }];
     const openings = [];
+    const mark = (from, to, d) => { for (let j = from; j < to; j++) if (j >= N0 && openings[j - N0] === undefined) openings[j - N0] = d; };
     let goalIdeal = N0 >= obj ? 0 : null;
     G = 0; n = N0;
-    const stI = { nextAt: p.pas };
     const canGrow = N0 > 0 && p.gain > 0;
     for (let d = 1; d <= xMax || (canGrow && goalIdeal === null && d <= 3650); d++) {
-      const used = n, gain = p.gain * used;
+      const floor = d <= k ? real[d].used : activeNow;
+      const used = Math.max(n, floor), gain = p.gain * used;
+      mark(n, used, d);
       G += gain;
-      n = after(used, opens(G, stI));
-      for (let j = used; j < n; j++) openings.push(d);
+      n = Math.max(used, byRule(G));
+      mark(used, n, d);
       if (goalIdeal === null && n >= obj) goalIdeal = d;
       if (d <= xMax) ideal.push({ d, E: C0 + G + depositsAt(d), G, n, used, gain });
     }
 
-    // Projection : repart d'aujourd'hui (capital réel, comptes actifs) au gain espéré par compte du Plan.
+    // Projection : repart du capital réel d'aujourd'hui avec les comptes actifs, au gain espéré par compte du Plan.
     const proj = [];
     let goalProj = activeNow >= obj ? k : null;
     if (k > 0) {
       const last = real[k];
       let G2 = last.G, n2 = Math.max(1, activeNow);
-      const stP = { nextAt: p.pas * (openedReal + 1) };
       proj.push({ d: k, E: last.E, n: n2 });
       for (let d = k + 1; d <= xMax; d++) {
         const used = n2, gain = p.gain * used;
         G2 += gain;
-        n2 = after(used, opens(G2, stP));
+        n2 = Math.max(used, byRule(G2));
         if (goalProj === null && n2 >= obj) goalProj = d;
         const E = C0 + G2 + last.F;
         if (E <= 0) { proj.push({ d, E: 0, n: n2, used, gain }); break; }
@@ -862,7 +868,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     const d = $("#derived"); d.textContent = "";
     const bold = (t) => { const b = document.createElement("b"); b.textContent = t; return b; };
     d.append("Un compte s'ajoute à chaque tranche de ", bold(eur0.format(p.pas)), " de gains cumulés, jusqu'à ", bold(plural(p.objectif, "compte", "comptes")), ". ");
-    d.append("Jour idéal 1 : ", bold("+" + eur0.format(p.gain * m.N0)), ". ");
+    d.append("Jour idéal 1 : ", bold("+" + eur0.format(m.ideal[1].gain)), ". ");
     if (m.goalIdeal === null) d.append("Objectif jamais atteint avec ce gain espéré.");
     else if (m.goalIdeal === 0) d.append("Objectif déjà atteint au départ.");
     else d.append("Objectif atteint au ", bold("J" + m.goalIdeal), " dans la courbe idéale.");
