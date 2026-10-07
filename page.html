@@ -318,7 +318,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     <div class="acc-row" id="acc-row"></div>
     <div class="eve-foot">
       <div class="gain-readout">
-        <span class="label">Gain du jour</span>
+        <span class="label" id="eve-gain-label">Gain du jour</span>
         <span class="value" id="eve-gain">—</span>
         <span class="note" id="eve-note"></span>
       </div>
@@ -406,6 +406,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
               <input id="s-comptes" type="number" min="1" step="1" inputmode="numeric">
             </div>
           </div>
+          <p class="help" id="start-help">Remplis tout seuls par les soldes de la première soirée.</p>
           <div class="field">
             <label for="s-horizon">Horizon du graphique (jours de trading)</label>
             <input id="s-horizon" type="number" min="5" max="365" step="1" inputmode="numeric">
@@ -515,7 +516,8 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
   "use strict";
 
   const ACCOUNT_NUMBERS = ["400", "889", "003", "975", "906", "668", "914", "176", "358", "398"];
-  const DEFAULTS = { gain: 50, pas: 300, objectif: 10, horizon: 20, capital: 1300, comptes: 4 };
+  // `depart` : date de la première soirée, dont les soldes ont fixé le capital et les comptes au départ.
+  const DEFAULTS = { gain: 50, pas: 300, objectif: 10, horizon: 20, capital: 1300, comptes: 4, depart: null };
   const LS_KEY = "echelle-comptes-v1";
   const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -579,6 +581,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       const h = Math.round(toNum(raw.horizon)); if (h >= 5 && h <= 365) s.horizon = h;
       const c = toNum(raw.capital); if (c > 0) s.capital = c;
       const n = Math.round(toNum(raw.comptes)); if (n >= 1) s.comptes = Math.min(n, ACCOUNT_NUMBERS.length);
+      if (DAY_RE.test(String(raw.depart))) s.depart = String(raw.depart);
     }
     return s;
   }
@@ -831,6 +834,12 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       return true;
     } catch (e) { handleWriteError(e, $("#eve-status")); return false; }
   }
+  function writeStartRow() {
+    if (state.mode === "local") { saveLocal(); return Promise.resolve(true); }
+    if (state.mode !== "db" || state.readOnly) return Promise.resolve(false);
+    return db.doc("reglages/comptes").set({ liste: state.accounts.map((a) => ({ ...a })), maj: new Date().toISOString() })
+      .then(() => true, (e) => { handleWriteError(e, $("#eve-status")); return false; });
+  }
   async function removeDay(date) {
     if (state.mode === "local") {
       state.days = state.days.filter((d) => d.date !== date);
@@ -878,6 +887,9 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     });
     const d = $("#derived"); d.textContent = "";
     const bold = (t) => { const b = document.createElement("b"); b.textContent = t; return b; };
+    $("#start-help").textContent = p.depart
+      ? "Fixés par les soldes de la soirée du " + shortDate(p.depart) + ", modifiables ici."
+      : "Remplis tout seuls par les soldes de la première soirée.";
     d.append("Un compte s'ajoute à chaque tranche de ", bold(eur0.format(p.pas)), " de gains cumulés, jusqu'à ", bold(plural(p.objectif, "compte", "comptes")), ". ");
     d.append("Jour idéal 1 : ", bold("+" + eur0.format(m.ideal[1].gain)), ". ");
     if (m.goalIdeal === null) d.append("Objectif jamais atteint avec ce gain espéré.");
@@ -935,8 +947,15 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     const day = state.days.find((d) => d.date === date);
     if (day && day.soldes) return { soldes: day.soldes, moves: day.mouvements || {}, legacyFlux: day.mouvements ? 0 : day.flux, day };
     const prev = sortedDays().filter((d) => d.date < date && d.soldes);
-    return { soldes: prev.length ? prev[prev.length - 1].soldes : toSoldes(accounts()), moves: {}, legacyFlux: 0, day: day || null };
+    // Sans aucune soirée ni point de départ (début, ou après une remise à zéro) : cases vides.
+    const base = state.accounts ? toSoldes(state.accounts) : state.days.length ? toSoldes(accounts()) : {};
+    return { soldes: prev.length ? prev[prev.length - 1].soldes : base, moves: {}, legacyFlux: 0, day: day || null };
   }
+  // Tant qu'aucune soirée n'est enregistrée, la première soirée remplie est le point de départ (J0) :
+  // ses soldes donnent le capital et le nombre de comptes au départ. Les soirées suivantes comptent les gains.
+  // Revenir sur la soirée de départ plus tard la corrige (et recalcule les gains des soirées suivantes).
+  const isStartEvening = (date) => date === state.settings.depart ||
+    (state.days.length === 0 && (!state.settings.depart || date <= state.settings.depart));
   function readEvening() {
     const vals = {}, moves = {};
     let invalid = false;
@@ -984,20 +1003,24 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     const cur = readEvening();
     const saved = state.days.find((d) => d.date === state.eveDate);
     const obj = p.objectif;
+    const startMode = isStartEvening(state.eveDate);
+    const n0 = startMode ? cur.n : m.N0;
     let emptyIdx = 0;
     let firstEmpty = null;
     ACCOUNT_NUMBERS.forEach((numero) => {
       const cell = document.querySelector('.acc[data-numero="' + numero + '"]');
       const inp = accInput(numero), tag = cell.querySelector(".acc-tag");
       inp.disabled = lock;
-      mvInput(numero).disabled = lock;
+      mvInput(numero).disabled = lock || startMode;
       const v = cur.vals[numero];
-      const mv = cur.moves && cur.moves[numero] ? cur.moves[numero] : 0;
+      const mv = !startMode && cur.moves && cur.moves[numero] ? cur.moves[numero] : 0;
       const active = v !== undefined;
       cell.classList.toggle("active", active);
       cell.classList.remove("next");
       tag.className = "acc-tag";
-      if (active) {
+      if (active && startMode) {
+        tag.textContent = "départ";
+      } else if (active) {
         // Gain du compte : variation du solde, dépôt ou retrait du soir retiré.
         const before = ref.soldes ? ref.soldes[numero] : undefined;
         if (before === undefined && !mv) tag.textContent = "nouveau";
@@ -1010,7 +1033,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
         tag.textContent = (mv > 0 ? "dépôt " : "retrait ") + signed(mv, eur2);
       } else {
         // Jour d'ouverture prévu par la courbe idéale, dans l'ordre de la ligne.
-        const j = cur.n - m.N0 + emptyIdx;
+        const j = cur.n - n0 + emptyIdx;
         let label = "";
         if (cur.n + emptyIdx >= obj) label = "hors objectif";
         else if (j >= 0 && m.openings[j] !== undefined) label = "prévu J" + m.openings[j];
@@ -1020,7 +1043,17 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       }
     });
     const gEl = $("#eve-gain");
-    if (!cur.n) {
+    $("#eve-gain-label").textContent = startMode ? "Point de départ" : "Gain du jour";
+    if (startMode) {
+      gEl.className = "value";
+      gEl.textContent = cur.n ? eur2.format(cur.total) : "—";
+      let sn = "J0 · " + dFmtLong.format(parseDate(state.eveDate)) + " · première soirée : ";
+      sn += cur.n ? plural(cur.n, "compte", "comptes") + ", ces soldes deviennent le capital au départ" : "tapez les soldes de vos comptes, ils deviendront le capital au départ";
+      sn += ". Le gain du jour se calcule dès la soirée suivante";
+      if (state.dirty) sn += " · enregistrement…";
+      else if (state.settings.depart === state.eveDate) sn += " · enregistré";
+      $("#eve-note").textContent = sn;
+    } else if (!cur.n) {
       gEl.className = "value"; gEl.textContent = "—";
     } else {
       const gain = round2(cur.total - ref.total - cur.flux);
@@ -1034,7 +1067,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     else if (saved && saved.soldes) note += " · enregistré";
     else if (saved) note += " · gain saisi à la main, remplir les soldes le remplacera";
     else note += " · pas encore enregistré";
-    $("#eve-note").textContent = note;
+    if (!startMode) $("#eve-note").textContent = note;
 
     // Résumé : où en est le plan
     const s = $("#acc-summary"); s.textContent = "";
@@ -1054,7 +1087,27 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     editSeq++;
     renderEvening();
     clearTimeout(eveTimer);
-    eveTimer = setTimeout(() => saveEvening(state.eveDate), 900);
+    eveTimer = setTimeout(() => commitEvening(state.eveDate), 900);
+  }
+  const commitEvening = (date) => (isStartEvening(date) ? saveStart(date) : saveEvening(date));
+  // Première soirée : les soldes deviennent le point de départ (capital et comptes au départ, ligne de départ).
+  async function saveStart(date) {
+    clearTimeout(eveTimer);
+    if (state.readOnly || state.mode === "pending") return;
+    const st = $("#eve-status");
+    const seq = editSeq;
+    const cur = readEvening();
+    if (cur.invalid) { setMsg(st, "Une case n'est pas un nombre valide : corrigez la case en rouge.", "err"); return; }
+    if (!cur.n) { setMsg(st, "Remplissez le solde d'au moins un compte : ce sera le capital au départ.", "err"); return; }
+    if (!(cur.total > 0)) { setMsg(st, "Le total des soldes doit dépasser 0 € pour servir de capital au départ.", "err"); return; }
+    state.accounts = ACCOUNT_NUMBERS.map((numero) => ({ numero, capital: cur.vals[numero] !== undefined ? cur.vals[numero] : null }));
+    state.startFromOuvert = null;
+    state.settings = { ...state.settings, capital: cur.total, comptes: Math.min(cur.n, ACCOUNT_NUMBERS.length), depart: date };
+    writeSettings();
+    if (!(await writeStartRow())) return;
+    if (seq === editSeq && date === state.eveDate) state.dirty = false;
+    flash(st, "Point de départ enregistré : " + plural(cur.n, "compte", "comptes") + ", " + eur2.format(cur.total), "ok");
+    render();
   }
   async function saveEvening(date) {
     clearTimeout(eveTimer);
@@ -1075,7 +1128,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
   $("#eve-date").addEventListener("change", async (ev) => {
     const next = ev.target.value;
     if (!DAY_RE.test(next)) { ev.target.value = state.eveDate; return; }
-    if (state.dirty) await saveEvening(state.eveDate);
+    if (state.dirty) await commitEvening(state.eveDate);
     state.eveDate = next;
     state.dirty = false;
     prefillEvening(true);
@@ -1098,7 +1151,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     const m = model, p = state.settings, k = m.k, last = m.real[k], id = m.ideal[k];
     $("#k-capital").textContent = eur0.format(last.E);
     $("#k-capital-note").textContent = k === 0
-      ? "Jour 0 · aucune soirée enregistrée"
+      ? (p.depart ? "Jour 0 · point de départ du " + shortDate(p.depart) : "Jour 0 · aucune soirée enregistrée")
       : "J" + k + " · " + shortDate(last.date) + " · " + signed(last.G) + " de gains depuis le départ" +
         (last.F ? ", " + (last.F > 0 ? "dépôts " : "retraits ") + signed(last.F) : "");
 
@@ -1728,7 +1781,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     clearTimeout(settingsTimer);
     const next = readSettingsForm();
     if (!next) return;
-    state.settings = next;
+    state.settings = { ...state.settings, ...next };
     render({ keepSettingsInputs: true });
     settingsTimer = setTimeout(writeSettings, 700);
   }));
@@ -1758,7 +1811,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       app: "echelle-comptes",
       version: 3,
       exporte: new Date().toISOString(),
-      reglages: { gain: s.gain, pas: s.pas, objectif: s.objectif, horizon: s.horizon, capital: s.capital, comptes: s.comptes },
+      reglages: { gain: s.gain, pas: s.pas, objectif: s.objectif, horizon: s.horizon, capital: s.capital, comptes: s.comptes, depart: s.depart },
       comptes: accounts().map((a) => ({ numero: a.numero, capital: a.capital })),
       jours: sortedDays().map((d, i) => ({ date: d.date, gain: m.real[i + 1].gain, comptes: d.comptes, soldes: d.soldes, total: d.total, flux: d.flux, mouvements: d.mouvements })),
       chrono: sortedChrono(),
