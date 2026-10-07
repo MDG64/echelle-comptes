@@ -233,6 +233,10 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
 .file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
 .file-btn:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
 .import-confirm { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--axis); border-radius: 8px; background: var(--bg); font-size: 0.86rem; }
+.reset-zone { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+.reset-zone .import-confirm { align-self: stretch; border-color: var(--bad); }
+.btn.danger-ghost { background: transparent; color: var(--bad); border-color: var(--line); }
+.btn.danger-ghost:hover { border-color: var(--bad); }
 
 /* Onglets */
 .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); overflow-x: auto; }
@@ -444,6 +448,16 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
           <div class="form-actions">
             <button class="btn danger" type="button" id="btn-import-ok">Remplacer mes données</button>
             <button class="btn ghost" type="button" id="btn-import-cancel">Annuler</button>
+          </div>
+        </div>
+        <div class="reset-zone" id="reset-zone">
+          <button class="btn ghost danger-ghost" type="button" id="btn-reset">Tout remettre à zéro</button>
+          <div class="import-confirm" id="reset-confirm" hidden>
+            <p id="reset-summary"></p>
+            <div class="form-actions">
+              <button class="btn danger" type="button" id="btn-reset-ok">Tout effacer</button>
+              <button class="btn ghost" type="button" id="btn-reset-cancel">Annuler</button>
+            </div>
           </div>
         </div>
         <p class="status" id="backup-status" role="status" aria-live="polite"></p>
@@ -1779,6 +1793,8 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     $("#btn-export").disabled = state.mode === "pending";
     $("#in-import").disabled = state.readOnly || state.mode === "pending";
     $("#import-wrap").hidden = state.readOnly;
+    $("#btn-reset").disabled = state.mode === "pending";
+    $("#reset-zone").hidden = state.readOnly;
   }
   $("#btn-export").addEventListener("click", async () => {
     const st = $("#backup-status");
@@ -1868,6 +1884,53 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     } catch (e) { handleWriteError(e, st); }
   });
 
+  /* ---------- Remise à zéro ---------- */
+  // Efface les soirées, les journées du chrono et les soldes de départ, et remet le Plan aux valeurs d'origine.
+  // Les préférences d'affichage (onglet, échelle, date du dernier export) restent.
+  function closeReset() { $("#reset-confirm").hidden = true; $("#btn-reset").hidden = false; }
+  $("#btn-reset").addEventListener("click", () => {
+    const nd = state.days.length, nc = state.chrono.length, p = DEFAULTS;
+    $("#reset-summary").textContent = "Tout sera effacé : " +
+      (nd ? plural(nd, "soirée enregistrée", "soirées enregistrées") : "aucune soirée enregistrée") + ", " +
+      (nc ? plural(nc, "journée du chrono", "journées du chrono") : "aucune journée du chrono") + " et les soldes de départ. " +
+      "Le Plan revient à " + eur0.format(p.capital) + " et " + plural(p.comptes, "compte", "comptes") + " au départ, " +
+      eur0.format(p.gain) + " par compte et par jour, un compte tous les " + eur0.format(p.pas) + ", objectif " + p.objectif + ". " +
+      "Impossible à annuler : cliquez d'abord sur Exporter pour garder une copie.";
+    $("#btn-reset").hidden = true;
+    $("#reset-confirm").hidden = false;
+    $("#btn-reset-cancel").focus();
+  });
+  $("#btn-reset-cancel").addEventListener("click", () => { closeReset(); $("#btn-reset").focus(); });
+  $("#btn-reset-ok").addEventListener("click", async () => {
+    closeReset();
+    const st = $("#backup-status");
+    clearTimeout(eveTimer); clearTimeout(settingsTimer);
+    state.dirty = false; state.confirmDelete = null; state.confirmChrono = null;
+    pendingImport = null; $("#import-confirm").hidden = true;
+    const fresh = () => {
+      state.settings = { ...DEFAULTS }; state.accounts = null; state.startFromOuvert = null;
+      state.eveDate = defaultEveDate();
+      prefillEvening(true); render();
+      flash(st, "Tout est remis à zéro.", "ok");
+    };
+    if (state.mode === "local") {
+      state.days = []; state.chrono = [];
+      try { localStorage.removeItem(LS_KEY); } catch (e) { /* ignoré */ }
+      fresh();
+      return;
+    }
+    if (state.mode !== "db" || state.readOnly) return;
+    setMsg(st, "Remise à zéro en cours…", "");
+    try {
+      for (const date of state.days.map((d) => d.date)) await db.doc("jours/" + date).delete();
+      for (const date of state.chrono.map((d) => d.date)) await db.doc("chrono/" + date).delete();
+      await db.doc("reglages/comptes").delete();
+      await db.doc("reglages/principal").set({ ...DEFAULTS, v: 3, maj: new Date().toISOString() });
+      state.settingsV3 = true;
+      fresh();
+    } catch (e) { handleWriteError(e, st); }
+  });
+
   /* ---------- Rendu global ---------- */
   function renderStoreNote() {
     const n = $("#store-note");
@@ -1927,6 +1990,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     }, onErr);
     db.doc("reglages/comptes").onSnapshot((snap) => {
       if (snap.exists) { const ca = cleanAccounts((snap.data() || {}).liste); state.accounts = ca.list; state.startFromOuvert = ca.start; }
+      else { state.accounts = null; state.startFromOuvert = null; }
       seen.accounts = true; ready();
     }, onErr);
     db.collection("jours").onSnapshot((snap) => {
