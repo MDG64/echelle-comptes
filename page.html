@@ -1742,6 +1742,82 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       setTab(TABS[to], { focus: true });
     });
   });
+  /* ---------- Import des relevés Vantage (lanceur du PC) ---------- */
+  // Le lanceur « Échelle — relevés Vantage » ouvre la page avec #vantage=<JSON> :
+  // {v:1, jours:[{d:"AAAA-MM-JJ", s:{numero: Balance}, m:{numero: dépôt/retrait}, pl: Closed P/L total}]}.
+  // Le fragment ne part jamais au serveur ; il est effacé de l'adresse dès la lecture.
+  function readImportHash() {
+    const h = location.hash || "";
+    if (!h.startsWith("#vantage=")) return null;
+    let data = null;
+    try { data = JSON.parse(decodeURIComponent(h.slice("#vantage=".length))); } catch (e) { data = null; }
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) { /* ignoré */ }
+    return data && Array.isArray(data.jours) ? data : { illisible: true };
+  }
+  const vantageImport = readImportHash();
+  let vantageDone = false;
+  async function applyVantage(data) {
+    if (vantageDone || !data) return;
+    vantageDone = true;
+    const st = $("#eve-status");
+    if (data.illisible) { setMsg(st, "Relevés Vantage illisibles : relancez le lanceur.", "err"); return; }
+    if (state.readOnly) { setMsg(st, "Lecture seule : les relevés Vantage n'ont pas été enregistrés.", "err"); return; }
+    clearTimeout(eveTimer);
+    const jours = data.jours.filter((j) => j && DAY_RE.test(String(j.d))).sort((a, b) => a.d.localeCompare(b.d));
+    const done = [];
+    let skipped = 0;
+    for (const j of jours) {
+      const date = String(j.d);
+      // Une soirée plus ancienne que le point de départ ne peut pas entrer dans l'échelle.
+      if (state.settings.depart && date < state.settings.depart) { skipped++; continue; }
+      const start = isStartEvening(date);
+      // Comptes sans relevé ce soir-là : solde de la soirée précédente (sans opération, la Balance ne bouge pas).
+      const prev = start ? [] : sortedDays().filter((d) => d.date < date && d.soldes);
+      const soldes = prev.length ? { ...prev[prev.length - 1].soldes } : start ? {} : toSoldes(accounts());
+      Object.entries(j.s || {}).forEach(([numero, v]) => {
+        const x = toNum(v);
+        if (!ACCOUNT_NUMBERS.includes(numero) || !Number.isFinite(x)) return;
+        // Balance à 0 : compte vide, la case reste vide (compte inactif).
+        if (x > 0.004) soldes[numero] = round2(x); else delete soldes[numero];
+      });
+      const moves = {};
+      Object.entries(j.m || {}).forEach(([numero, v]) => {
+        const x = toNum(v);
+        if (ACCOUNT_NUMBERS.includes(numero) && Number.isFinite(x) && Math.abs(x) > 0.004) moves[numero] = round2(x);
+      });
+      const n = Object.keys(soldes).length, total = round2(sumSoldes(soldes)), flux = round2(sumSoldes(moves));
+      if (start) {
+        if (!(total > 0)) { skipped++; continue; }
+        state.accounts = ACCOUNT_NUMBERS.map((numero) => ({ numero, capital: soldes[numero] !== undefined ? soldes[numero] : null }));
+        state.startFromOuvert = null;
+        state.settings = { ...state.settings, capital: total, comptes: Math.min(n, ACCOUNT_NUMBERS.length), depart: date };
+        writeSettings();
+        if (!(await writeStartRow())) return;
+      } else {
+        const ref = reference(date);
+        const ok = await writeDay({
+          date, gain: round2(total - ref.total - flux), comptes: n || null,
+          soldes: n ? soldes : null, total: n ? total : null, flux, mouvements: Object.keys(moves).length ? moves : null,
+        });
+        if (!ok) return;
+      }
+      done.push(date);
+    }
+    if (done.length) {
+      state.eveDate = done[done.length - 1];
+      state.dirty = false;
+      setTab("echelle", { remember: false });
+      prefillEvening(true);
+    }
+    render();
+    let msg;
+    if (!done.length) msg = jours.length ? "Relevés Vantage : aucune soirée importable." : "Relevés Vantage : aucun nouveau relevé.";
+    else msg = "Relevés Vantage importés : " + plural(done.length, "soirée", "soirées") +
+      (done.length > 1 ? " (du " + shortDate(done[0]) + " au " + shortDate(done[done.length - 1]) + ")" : " (" + shortDate(done[0]) + ")");
+    if (skipped) msg += " · " + plural(skipped, "soirée ignorée", "soirées ignorées") + " (avant le point de départ)";
+    setMsg(st, msg, done.length ? "ok" : "");
+  }
+
   (function initTab() {
     let name = (location.hash || "").replace("#", "");
     if (!TABS.includes(name)) { try { name = localStorage.getItem(LS_KEY + "-tab"); } catch (e) { name = null; } }
@@ -2005,6 +2081,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     try { got = inClaude ? await window.claude.use("db") : null; } catch (e) { got = null; }
     if (!got) {
       state.mode = "local"; loadLocal(); render();
+      if (vantageImport) applyVantage(vantageImport);
       // Demande au navigateur de ne pas purger le stockage local de lui-même.
       try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* ignoré */ }
       return;
@@ -2018,6 +2095,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
         state.settings.comptes = Math.min(state.startFromOuvert.comptes, ACCOUNT_NUMBERS.length);
       }
       render();
+      if (vantageImport) applyVantage(vantageImport);
     };
     const onErr = (e) => { if (e && e.code === "revoked") { state.readOnly = true; render(); } };
     db.doc("reglages/principal").onSnapshot((snap) => {
