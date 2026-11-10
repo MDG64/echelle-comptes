@@ -520,6 +520,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
   const DEFAULTS = { gain: 50, pas: 300, objectif: 10, horizon: 20, capital: 1300, comptes: 4, depart: null };
   const LS_KEY = "echelle-comptes-v1";
   const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const dayBefore = (date) => { const t = new Date(date + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() - 1); return t.toISOString().slice(0, 10); };
 
   const state = {
     settings: { ...DEFAULTS },
@@ -1770,7 +1771,25 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       const date = String(j.d);
       // Une soirée plus ancienne que le point de départ ne peut pas entrer dans l'échelle.
       if (state.settings.depart && date < state.settings.depart) { skipped++; continue; }
-      const start = isStartEvening(date);
+      let start = isStartEvening(date);
+      // Première soirée de l'échelle avec les soldes d'ouverture du relevé (Previous Ledger Balance) :
+      // le point de départ (J0) devient la veille, à ces soldes, et la soirée compte comme un jour de gain.
+      // Sans cela, son résultat disparaissait dans le capital de départ.
+      const opening = {};
+      Object.entries(j.o || {}).forEach(([numero, v]) => {
+        const x = toNum(v);
+        if (ACCOUNT_NUMBERS.includes(numero) && Number.isFinite(x) && x > 0.004) opening[numero] = round2(x);
+      });
+      const openTotal = round2(sumSoldes(opening));
+      if (start && openTotal > 0) {
+        const j0 = dayBefore(date);
+        state.accounts = ACCOUNT_NUMBERS.map((numero) => ({ numero, capital: opening[numero] !== undefined ? opening[numero] : null }));
+        state.startFromOuvert = null;
+        state.settings = { ...state.settings, capital: openTotal, comptes: Math.min(Object.keys(opening).length, ACCOUNT_NUMBERS.length), depart: j0 };
+        writeSettings();
+        if (!(await writeStartRow())) return;
+        start = false;
+      }
       // Comptes sans relevé ce soir-là : solde de la soirée précédente (sans opération, la Balance ne bouge pas).
       const prev = start ? [] : sortedDays().filter((d) => d.date < date && d.soldes);
       const soldes = prev.length ? { ...prev[prev.length - 1].soldes } : start ? {} : toSoldes(accounts());
@@ -2081,6 +2100,13 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     try { got = inClaude ? await window.claude.use("db") : null; } catch (e) { got = null; }
     if (!got) {
       state.mode = "local"; loadLocal(); render();
+      // Un autre onglet (l'import Vantage en ouvre un) a enregistré : reprendre ses données,
+      // sinon cet onglet-ci écraserait l'import à sa prochaine saisie.
+      window.addEventListener("storage", (ev) => {
+        if (ev.key !== LS_KEY || ev.storageArea !== localStorage) return;
+        clearTimeout(eveTimer);
+        loadLocal(); state.dirty = false; prefillEvening(true); render();
+      });
       if (vantageImport) applyVantage(vantageImport);
       // Demande au navigateur de ne pas purger le stockage local de lui-même.
       try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* ignoré */ }
