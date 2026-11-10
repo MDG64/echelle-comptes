@@ -325,9 +325,13 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     <div class="eve-head">
       <div>
         <h2 id="h-evening">Soldes du soir</h2>
-        <p class="lead">Chaque soir, tapez le solde de chaque compte. Le gain du jour se calcule et s'enregistre tout seul. Case vide = compte inactif. Un dépôt (+) ou un retrait (−) se met dans la petite case du compte : il change le capital sans compter comme un gain.</p>
+        <p class="lead" id="eve-lead">Chaque soir, tapez le solde de chaque compte. Le gain du jour se calcule et s'enregistre tout seul. Case vide = compte inactif. Un dépôt (+) ou un retrait (−) se met dans la petite case du compte : il change le capital sans compter comme un gain.</p>
       </div>
       <div class="eve-date">
+        <div class="seg" role="group" aria-label="Ce que change la saisie d'un solde">
+          <button type="button" id="mode-gain" aria-pressed="true">Gain du jour</button>
+          <button type="button" id="mode-adjust" aria-pressed="false">Ajustement</button>
+        </div>
         <label for="eve-date">Soirée du</label>
         <input id="eve-date" type="date">
       </div>
@@ -534,7 +538,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
 
   const ACCOUNT_NUMBERS = ["400", "889", "003", "975", "906", "668", "914", "176", "358", "398"];
   // `depart` : date de la première soirée, dont les soldes ont fixé le capital et les comptes au départ.
-  const DEFAULTS = { gain: 50, pas: 300, objectif: 10, horizon: 20, capital: 1300, comptes: 4, depart: null };
+  const DEFAULTS = { gain: 50, pas: 300, objectif: 10, horizon: 20, capital: 1300, comptes: 4, depart: null, ajust0: null };
   const LS_KEY = "echelle-comptes-v1";
   const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
   const dayBefore = (date) => { const t = new Date(date + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() - 1); return t.toISOString().slice(0, 10); };
@@ -553,6 +557,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     confirmDelete: null,
     eveDate: null,
     dirty: false,
+    adjust: false,         // mode Ajustement : un solde tapé change le capital, jamais le gain
   };
   let db = null;
   let model = null;
@@ -600,6 +605,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       const c = toNum(raw.capital); if (c > 0) s.capital = c;
       const n = Math.round(toNum(raw.comptes)); if (n >= 1) s.comptes = Math.min(n, ACCOUNT_NUMBERS.length);
       if (DAY_RE.test(String(raw.depart))) s.depart = String(raw.depart);
+      const a0 = cleanMoves(raw.ajust0); if (a0) s.ajust0 = a0;
     }
     return s;
   }
@@ -656,6 +662,8 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       total: soldes ? total : null,
       flux: Number.isFinite(f) ? round2(f) : 0,
       mouvements,
+      // Ajustements manuels du soir (déjà comptés dans `mouvements`) : reportés sur les soirées suivantes.
+      ajust: cleanMoves(raw.ajust),
     };
   }
   // Dépôts (+) et retraits (−) de la soirée, compte par compte.
@@ -1025,11 +1033,22 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     const n0 = startMode ? cur.n : m.N0;
     let emptyIdx = 0;
     let firstEmpty = null;
+    const pendingAdj = state.adjust ? adjustDeltas(state.eveDate, cur) : {};
+    const savedAdj = state.adjust ? (startMode ? state.settings.ajust0 : saved && saved.ajust) || {} : {};
     ACCOUNT_NUMBERS.forEach((numero) => {
       const cell = document.querySelector('.acc[data-numero="' + numero + '"]');
       const inp = accInput(numero), tag = cell.querySelector(".acc-tag");
       inp.disabled = lock;
-      mvInput(numero).disabled = lock || startMode;
+      mvInput(numero).disabled = lock || startMode || state.adjust;
+      if (state.adjust) {
+        // Mode Ajustement : l'écart en attente, sinon celui déjà enregistré ce soir-là.
+        const dv = pendingAdj[numero] || savedAdj[numero] || 0;
+        cell.classList.toggle("active", cur.vals[numero] !== undefined);
+        cell.classList.remove("next");
+        tag.className = "acc-tag";
+        tag.textContent = dv ? "ajusté " + signed(dv, eur2) : cur.vals[numero] !== undefined ? "inchangé" : "inactif";
+        return;
+      }
       const v = cur.vals[numero];
       const mv = !startMode && cur.moves && cur.moves[numero] ? cur.moves[numero] : 0;
       const active = v !== undefined;
@@ -1061,8 +1080,18 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       }
     });
     const gEl = $("#eve-gain");
-    $("#eve-gain-label").textContent = startMode ? "Point de départ" : "Gain du jour";
-    if (startMode) {
+    $("#eve-gain-label").textContent = startMode ? "Point de départ" : state.adjust ? "Gain du jour (inchangé)" : "Gain du jour";
+    if (state.adjust && !startMode) {
+      const gain = !saved ? 0 : saved.soldes ? round2(saved.total - ref.total - saved.flux) : saved.gain;
+      gEl.className = "value delta " + (gain > 0.004 ? "up" : gain < -0.004 ? "down" : "flat");
+      gEl.textContent = signed(gain, eur2);
+      const pend = round2(sumSoldes(pendingAdj)), done = round2(sumSoldes(savedAdj));
+      let an = "Ajustement · " + dFmtLong.format(parseDate(state.eveDate)) + " · total " + eur2.format(cur.total);
+      if (pend) an += " · capital " + signed(pend, eur2) + " hors gain";
+      else if (done) an += " · déjà ajusté ce soir : " + signed(done, eur2);
+      an += state.dirty ? " · enregistrement…" : saved ? " · enregistré" : "";
+      $("#eve-note").textContent = an;
+    } else if (startMode) {
       gEl.className = "value";
       gEl.textContent = cur.n ? eur2.format(cur.total) : "—";
       let sn = "J0 · " + dFmtLong.format(parseDate(state.eveDate)) + " · première soirée : ";
@@ -1085,7 +1114,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     else if (saved && saved.soldes) note += " · enregistré";
     else if (saved) note += " · gain saisi à la main, remplir les soldes le remplacera";
     else note += " · pas encore enregistré";
-    if (!startMode) $("#eve-note").textContent = note;
+    if (!startMode && !state.adjust) $("#eve-note").textContent = note;
 
     // Résumé : où en est le plan
     const s = $("#acc-summary"); s.textContent = "";
@@ -1107,7 +1136,87 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     clearTimeout(eveTimer);
     eveTimer = setTimeout(() => commitEvening(state.eveDate), 900);
   }
-  const commitEvening = (date) => (isStartEvening(date) ? saveStart(date) : saveEvening(date));
+  const commitEvening = (date) => (state.adjust ? saveAdjust(date) : isStartEvening(date) ? saveStart(date) : saveEvening(date));
+
+  /* ---------- Ajustement : changer un solde sans gain ni perte ---------- */
+  const addInto = (obj, numero, v) => { const x = round2((obj[numero] || 0) + v); if (Math.abs(x) > 0.004) obj[numero] = x; else delete obj[numero]; };
+  // Écarts d'ajustement en vigueur à `date` : ceux du point de départ et des soirées jusqu'à `date` incluse.
+  function offsetsAt(date) {
+    const o = { ...(state.settings.ajust0 || {}) };
+    for (const d of state.days) if (d.date <= date && d.ajust) Object.entries(d.ajust).forEach(([n, v]) => addInto(o, n, v));
+    return o;
+  }
+  // Ce que la saisie change par rapport aux soldes enregistrés (ou reportés) de la soirée.
+  function adjustDeltas(date, cur) {
+    const base = isStartEvening(date) ? toSoldes(accounts()) : eveningValues(date).soldes;
+    const deltas = {};
+    ACCOUNT_NUMBERS.forEach((n) => {
+      const dv = round2((cur.vals[n] !== undefined ? cur.vals[n] : 0) - (base[n] !== undefined ? base[n] : 0));
+      if (Math.abs(dv) > 0.004) deltas[n] = dv;
+    });
+    return deltas;
+  }
+  // Les soirées suivantes gardent leur gain : leurs soldes suivent l'écart.
+  async function shiftLater(date, deltas) {
+    for (const d of sortedDays().filter((x) => x.date > date && x.soldes)) {
+      const soldes = { ...d.soldes };
+      Object.entries(deltas).forEach(([n, v]) => {
+        const x = round2((soldes[n] || 0) + v);
+        if (x > 0.004) soldes[n] = x; else delete soldes[n];
+      });
+      const total = round2(sumSoldes(soldes));
+      if (!(await writeDay({ ...d, soldes, total, comptes: Object.keys(soldes).length || null }))) return false;
+    }
+    return true;
+  }
+  async function saveAdjust(date) {
+    clearTimeout(eveTimer);
+    if (state.readOnly || state.mode === "pending") return;
+    const st = $("#eve-status");
+    const seq = editSeq;
+    const cur = readEvening();
+    if (cur.invalid) { setMsg(st, "Une case n'est pas un nombre valide : corrigez la case en rouge.", "err"); return; }
+    const deltas = adjustDeltas(date, cur);
+    if (!Object.keys(deltas).length) { if (seq === editSeq) state.dirty = false; renderEvening(); return; }
+    const sum = round2(sumSoldes(deltas));
+    if (isStartEvening(date)) {
+      // Point de départ : le capital au départ suit, l'écart est gardé pour les imports Vantage.
+      const a0 = { ...(state.settings.ajust0 || {}) };
+      Object.entries(deltas).forEach(([n, v]) => addInto(a0, n, v));
+      state.settings = { ...state.settings, ajust0: Object.keys(a0).length ? a0 : null };
+      await saveStart(date);
+    } else {
+      const day = state.days.find((d) => d.date === date);
+      const ref = reference(date);
+      const ajust = { ...((day && day.ajust) || {}) };
+      const moves = { ...((day && day.soldes && day.mouvements) || {}) };
+      Object.entries(deltas).forEach(([n, v]) => { addInto(ajust, n, v); addInto(moves, n, v); });
+      // Soirée déjà enregistrée : son gain ne bouge pas. Soirée nouvelle : gain nul, tout l'écart est un ajustement.
+      const gain = !day ? 0 : day.soldes ? round2(day.total - ref.total - day.flux) : day.gain;
+      const flux = round2(cur.total - ref.total - gain);
+      const ok = await writeDay({
+        date, gain, comptes: cur.n || null, soldes: cur.n ? cur.vals : null, total: cur.n ? cur.total : null,
+        flux, mouvements: Object.keys(moves).length ? moves : null, ajust: Object.keys(ajust).length ? ajust : null,
+      });
+      if (!ok) return;
+    }
+    if (!(await shiftLater(date, deltas))) return;
+    if (seq === editSeq && date === state.eveDate) { state.dirty = false; prefillEvening(true); }
+    flash(st, "Ajustement enregistré : capital " + signed(sum, eur2) + ", gains et pertes inchangés", "ok");
+    render();
+  }
+  function setAdjustMode(on) {
+    if (state.dirty) commitEvening(state.eveDate);
+    state.adjust = !!on;
+    $("#mode-gain").setAttribute("aria-pressed", String(!state.adjust));
+    $("#mode-adjust").setAttribute("aria-pressed", String(state.adjust));
+    $("#eve-lead").textContent = state.adjust
+      ? "Ajustement : tapez le bon solde d'un compte. L'écart change le capital total, jamais le gain ni la perte, et se reporte sur les soirées suivantes et les prochains relevés Vantage."
+      : "Chaque soir, tapez le solde de chaque compte. Le gain du jour se calcule et s'enregistre tout seul. Case vide = compte inactif. Un dépôt (+) ou un retrait (−) se met dans la petite case du compte : il change le capital sans compter comme un gain.";
+    renderEvening();
+  }
+  $("#mode-gain").addEventListener("click", () => setAdjustMode(false));
+  $("#mode-adjust").addEventListener("click", () => setAdjustMode(true));
   // Première soirée : les soldes deviennent le point de départ (capital et comptes au départ, ligne de départ).
   async function saveStart(date) {
     clearTimeout(eveTimer);
@@ -1137,7 +1246,8 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
     if (!cur.n) { setMsg(st, "Remplissez au moins un solde pour calculer le gain du jour.", "err"); return; }
     const ref = reference(date);
     const gain = round2(cur.total - ref.total - cur.flux);
-    const ok = await writeDay({ date, gain, comptes: cur.n, soldes: cur.vals, total: cur.total, flux: cur.flux, mouvements: cur.moves });
+    const kept = state.days.find((d) => d.date === date);
+    const ok = await writeDay({ date, gain, comptes: cur.n, soldes: cur.vals, total: cur.total, flux: cur.flux, mouvements: cur.moves, ajust: (kept && kept.ajust) || null });
     if (!ok) return;
     if (seq === editSeq && date === state.eveDate) state.dirty = false;
     flash(st, "Enregistré : gain du " + shortDate(date) + " " + signed(gain, eur2), "ok");
@@ -1797,8 +1907,14 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
         const x = toNum(v);
         if (ACCOUNT_NUMBERS.includes(numero) && Number.isFinite(x) && x > 0.004) opening[numero] = round2(x);
       });
+      const hasOpening = sumSoldes(opening) > 0;
+      // Les ajustements faits au point de départ s'appliquent aussi aux soldes d'ouverture.
+      Object.entries(state.settings.ajust0 || {}).forEach(([numero, v]) => {
+        const x = round2((opening[numero] || 0) + v);
+        if (x > 0.004) opening[numero] = x; else delete opening[numero];
+      });
       const openTotal = round2(sumSoldes(opening));
-      if (start && openTotal > 0) {
+      if (start && hasOpening && openTotal > 0) {
         const j0 = dayBefore(date);
         state.accounts = ACCOUNT_NUMBERS.map((numero) => ({ numero, capital: opening[numero] !== undefined ? opening[numero] : null }));
         state.startFromOuvert = null;
@@ -1810,17 +1926,26 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       // Comptes sans relevé ce soir-là : solde de la soirée précédente (sans opération, la Balance ne bouge pas).
       const prev = start ? [] : sortedDays().filter((d) => d.date < date && d.soldes);
       const soldes = prev.length ? { ...prev[prev.length - 1].soldes } : start ? {} : toSoldes(accounts());
+      // Ajustements manuels : ceux de cette soirée sont gardés, et tous ceux en vigueur s'ajoutent aux Balance
+      // Vantage, pour que relancer l'import ne les efface pas et ne change aucun gain.
+      const existing = state.days.find((d) => d.date === date);
+      const keep = { ...((existing && existing.ajust) || {}) };
+      const off = offsetsAt(date);
+      Object.entries(keep).forEach(([numero, v]) => { if (!(j.s && numero in j.s)) addInto(soldes, numero, v); });
       Object.entries(j.s || {}).forEach(([numero, v]) => {
-        const x = toNum(v);
-        if (!ACCOUNT_NUMBERS.includes(numero) || !Number.isFinite(x)) return;
+        const x0 = toNum(v);
+        if (!ACCOUNT_NUMBERS.includes(numero) || !Number.isFinite(x0)) return;
+        const x = round2(x0 + (off[numero] || 0));
         // Balance à 0 : compte vide, la case reste vide (compte inactif).
-        if (x > 0.004) soldes[numero] = round2(x); else delete soldes[numero];
+        if (x > 0.004) soldes[numero] = x; else delete soldes[numero];
       });
+      Object.keys(soldes).forEach((numero) => { if (!(soldes[numero] > 0.004)) delete soldes[numero]; });
       const moves = {};
       Object.entries(j.m || {}).forEach(([numero, v]) => {
         const x = toNum(v);
         if (ACCOUNT_NUMBERS.includes(numero) && Number.isFinite(x) && Math.abs(x) > 0.004) moves[numero] = round2(x);
       });
+      Object.entries(keep).forEach(([numero, v]) => addInto(moves, numero, v));
       const n = Object.keys(soldes).length, total = round2(sumSoldes(soldes)), flux = round2(sumSoldes(moves));
       if (start) {
         if (!(total > 0)) { skipped++; continue; }
@@ -1834,6 +1959,7 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
         const ok = await writeDay({
           date, gain: round2(total - ref.total - flux), comptes: n || null,
           soldes: n ? soldes : null, total: n ? total : null, flux, mouvements: Object.keys(moves).length ? moves : null,
+          ajust: Object.keys(keep).length ? keep : null,
         });
         if (!ok) return;
       }
@@ -1923,9 +2049,9 @@ td.actions { font-family: var(--font-body); padding-right: 0; }
       app: "echelle-comptes",
       version: 3,
       exporte: new Date().toISOString(),
-      reglages: { gain: s.gain, pas: s.pas, objectif: s.objectif, horizon: s.horizon, capital: s.capital, comptes: s.comptes, depart: s.depart },
+      reglages: { gain: s.gain, pas: s.pas, objectif: s.objectif, horizon: s.horizon, capital: s.capital, comptes: s.comptes, depart: s.depart, ajust0: s.ajust0 },
       comptes: accounts().map((a) => ({ numero: a.numero, capital: a.capital })),
-      jours: sortedDays().map((d, i) => ({ date: d.date, gain: m.real[i + 1].gain, comptes: d.comptes, soldes: d.soldes, total: d.total, flux: d.flux, mouvements: d.mouvements })),
+      jours: sortedDays().map((d, i) => ({ date: d.date, gain: m.real[i + 1].gain, comptes: d.comptes, soldes: d.soldes, total: d.total, flux: d.flux, mouvements: d.mouvements, ajust: d.ajust })),
       chrono: sortedChrono(),
     };
   }
